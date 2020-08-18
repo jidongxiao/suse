@@ -196,7 +196,8 @@ int doAll(unsigned char *ciphertext, key_rsa *cipherKey){
    printf("sizeof RSA QP is %d, decrypted QP is : %s\n",sizeof(RSA_QP), decrypted_RSA_QP );
 
  // reading 
-   mpi_read_string( &rsa.N , 16, cipherKey->N);
+   //mpi_read_string( &rsa.N , 16, cipherKey->N);
+   mpi_read_string( &rsa.N , 16, RSA_N);
    mpi_read_string( &rsa.E , 16, cipherKey->E);
    mpi_read_string( &rsa.D , 16, decrypted_RSA_D);
    mpi_read_string( &rsa.P , 16, decrypted_RSA_P);
