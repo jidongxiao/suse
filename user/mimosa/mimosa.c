@@ -239,160 +239,129 @@ int doAll(unsigned char *ciphertext, key_rsa *cipherKey){
 
 
 
+//void main(){
 
-
-
-
-void main(){
-
-    int result,j;
-    result = -1;
-    unsigned char rsa_plaintext[PT_LEN];
-    unsigned char rsa_ciphertext[KEY_LEN];
-    
-    unsigned char encrypted_RSA_D[sizeof(RSA_D)];
-    unsigned char encrypted_RSA_P[sizeof(RSA_P)];
-    unsigned char encrypted_RSA_Q[sizeof(RSA_Q)];
-    unsigned char encrypted_RSA_DP[sizeof(RSA_DP)];
-    unsigned char encrypted_RSA_DQ[sizeof(RSA_DQ)];
-    unsigned char encrypted_RSA_QP[sizeof(RSA_QP)];
-
-//    unsigned char encrypted_RSA_D[sizeof(RSA_KEY_NO_LABEL)];
-//    unsigned char encrypted_RSA_P[sizeof(RSA_KEY_NO_LABEL)];
-//    unsigned char encrypted_RSA_Q[sizeof(RSA_KEY_NO_LABEL)];
-//    unsigned char encrypted_RSA_DP[sizeof(RSA_KEY_NO_LABEL)];
-//    unsigned char encrypted_RSA_DQ[sizeof(RSA_KEY_NO_LABEL)];
-//    unsigned char encrypted_RSA_QP[sizeof(RSA_KEY_NO_LABEL)];
-
-    unsigned char decrypt_private_key[sizeof(RSA_D)];
-    unsigned char decrypt_private_key_P[sizeof(RSA_P)];
-
-    rsa_context rsa;
-    key_rsa test;
-
-
-    rsa_init( &rsa, RSA_PKCS_V15, 0 );
-    rsa.len = KEY_LEN;
-
-    // setting RSA public key
-    mpi_read_string( &rsa.N , 16, RSA_N  );
-    mpi_read_string( &rsa.E , 16, RSA_E  );
-
-    if( rsa_check_pubkey(&rsa) != 0) {
-    printf( "Public key error! \n" );
-    exit(0);
-  }
-
-  memcpy( rsa_plaintext, RSA_PT, PT_LEN+1 );
-  printf("plain text is: %s\n", rsa_plaintext);
-
-  if( rsa_pkcs1_encrypt( &rsa, &myrand, NULL, RSA_PUBLIC, PT_LEN, rsa_plaintext, rsa_ciphertext ) != 0 ) {
-      printf( "Encryption failed! \n" );
-      exit(0);
-  }else {
-    printf("RSA Encryption Successful\n");
-  }
-
-
- //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-
-  //calling AES to encrypt private keys
-  aes_context aes;
-
-
-  // following function will generate all the AES round keys for encryption
-  aes_setkey_enc(&aes,mkt,AES_KEY_SIZE_BITS);
-
-  for(j=0;j<sizeof(RSA_D)/AES_BLOCK_SIZE;++j){
-    aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_D + AES_BLOCK_SIZE*j,encrypted_RSA_D+AES_BLOCK_SIZE*j);  
-  }
-  //printf("Original RSA_D value: %s\n", RSA_D );
-  //printf("Encrypted RSA_D value: %s\n", encrypted_RSA_D);
-  //printf("private key --> RSA_D encrypted \n");
-
-  for(j=0;j<sizeof(RSA_P)/AES_BLOCK_SIZE;++j){
-    aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_P + AES_BLOCK_SIZE*j,encrypted_RSA_P+AES_BLOCK_SIZE*j);  
-  }
-  printf("private key --> RSA_P encrypted \n");
-
-  for(j=0;j<sizeof(RSA_Q)/AES_BLOCK_SIZE;++j){
-    aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_Q + AES_BLOCK_SIZE*j,encrypted_RSA_Q+AES_BLOCK_SIZE*j);  
-  }
-  printf("private key --> RSA_Q encrypted \n");
-
-  for(j=0;j<sizeof(RSA_DP)/AES_BLOCK_SIZE;++j){
-    aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_DP + AES_BLOCK_SIZE*j,encrypted_RSA_DP+AES_BLOCK_SIZE*j);  
-  }
-  printf("private key --> RSA_DP encrypted \n");
-
-  for(j=0;j<sizeof(RSA_DQ)/AES_BLOCK_SIZE;++j){
-    aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_DQ + AES_BLOCK_SIZE*j,encrypted_RSA_DQ+AES_BLOCK_SIZE*j);  
-  }
-  printf("private key --> RSA_DQ encrypted \n");
-
-  for(j=0;j<sizeof(RSA_QP)/AES_BLOCK_SIZE;++j){
-    aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_QP + AES_BLOCK_SIZE*j,encrypted_RSA_QP+AES_BLOCK_SIZE*j);  
-  }
-  printf("private key --> RSA_QP encrypted \n");
-
-
-  // adding this encrypted keys into _key_rsa structure
-  memcpy(test.N, RSA_N, sizeof(RSA_N));
-  memcpy(test.E, RSA_E, sizeof(RSA_E));
-  memcpy(test.D, encrypted_RSA_D, sizeof(encrypted_RSA_D));
-  memcpy(test.P, encrypted_RSA_P, sizeof(encrypted_RSA_P));
-  memcpy(test.Q, encrypted_RSA_Q, sizeof(encrypted_RSA_Q));
-  memcpy(test.DP, encrypted_RSA_DP, sizeof(encrypted_RSA_DP));
-  memcpy(test.DQ, encrypted_RSA_DQ, sizeof(encrypted_RSA_DQ));
-  memcpy(test.QP, encrypted_RSA_QP, sizeof(encrypted_RSA_QP));
-  //printf("RSA Value of N :%s\n", test.N);
-
-
-  
-
-
-// this should be inside doALL function
 /*
-  aes_setkey_dec(&aes,mkt,AES_KEY_SIZE_BITS);
-  for(j=0;j<sizeof(RSA_D)/AES_BLOCK_SIZE;++j){
-    aes_crypt_ecb(&aes,AES_DECRYPT, encrypted_RSA_D + AES_BLOCK_SIZE*j,decrypt_private_key+AES_BLOCK_SIZE*j);    
-  }
-  printf("Decrypted RSA_D value: %s\n", decrypt_private_key);
-  printf("sizeof(RSA_D)/AES_BLOCK_SIZE: %d\n", sizeof(RSA_D)/AES_BLOCK_SIZE);
+ * Main function should receive service request from the openssl. Our main function will be called with three parameter
+ *  1 -- File descriptor (Open file descriptor for the encrypted RSA private key)
+ *  2 -- Rewuested service
+ *  3 -- encrypted msg (requesting decryption service) or plain text to perform signing operation
+ *  For now this main function will be called from the openssl with the following parameters
+ *   ./mimosa 0 IsoToken_IOC_SIGN 0
+ *
+ * */
+int main(int argc, char *argv[] ){
+
+    if (strcmp(argv[2],"IsoToken_IOC_SET_MASTER_KEY")==0){
+        printf("get IsoToken_IOC_SET_MASTER_KEY");
+    }else if (strcmp(argv[2],"IsoToken_IOC_GET_PRIVATE_KEY_ID")==0){
+        printf("get IsoToken_IOC_GET_PRIVATE_KEY_ID");
+    }else if (strcmp(argv[2],"IsoToken_IOC_GET_PUBKEY")==0){
+        printf("get IsoToken_IOC_GET_PUBKEY");
+    }else if(strcmp(argv[2],"IsoToken_IOC_SIGN")==0){
+        printf("Performing requested IsoToken_IOC_SIGN service");
+
+        int result,j;
+        result = -1;
+        unsigned char rsa_plaintext[PT_LEN];
+        unsigned char rsa_ciphertext[KEY_LEN];
+
+        unsigned char encrypted_RSA_D[sizeof(RSA_D)];
+        unsigned char encrypted_RSA_P[sizeof(RSA_P)];
+        unsigned char encrypted_RSA_Q[sizeof(RSA_Q)];
+        unsigned char encrypted_RSA_DP[sizeof(RSA_DP)];
+        unsigned char encrypted_RSA_DQ[sizeof(RSA_DQ)];
+        unsigned char encrypted_RSA_QP[sizeof(RSA_QP)];
+
+        unsigned char decrypt_private_key[sizeof(RSA_D)];
+        unsigned char decrypt_private_key_P[sizeof(RSA_P)];
+
+        rsa_context rsa;
+        key_rsa test;
 
 
-*/
+        rsa_init( &rsa, RSA_PKCS_V15, 0 );
+        rsa.len = KEY_LEN;
+
+        // setting RSA public key
+        mpi_read_string( &rsa.N , 16, RSA_N  );
+        mpi_read_string( &rsa.E , 16, RSA_E  );
+
+        if( rsa_check_pubkey(&rsa) != 0) {
+            printf( "Public key error! \n" );
+            exit(0);
+        }
+
+        memcpy( rsa_plaintext, RSA_PT, PT_LEN+1 );
+        printf("plain text is: %s\n", rsa_plaintext);
+
+        if( rsa_pkcs1_encrypt( &rsa, &myrand, NULL, RSA_PUBLIC, PT_LEN, rsa_plaintext, rsa_ciphertext ) != 0 ) {
+            printf( "Encryption failed! \n" );
+            exit(0);
+        }else {
+            printf("RSA Encryption Successful\n");
+        }
 
 
-
-  aes_setkey_dec(&aes,mkt,AES_KEY_SIZE_BITS);
-
-  printf("sizeof(sizeof(test.D)/AES_BLOCK_SIZE: %d\n", sizeof(test.D)/AES_BLOCK_SIZE);
-  printf("sizeof(sizeof(RSA_D)/AES_BLOCK_SIZE: %d\n", sizeof(RSA_D)/AES_BLOCK_SIZE);
+        //calling AES to encrypt private keys
+        aes_context aes;
 
 
-  for(j=0;j<sizeof(test.D)/AES_BLOCK_SIZE;++j){
-    aes_crypt_ecb(&aes,AES_DECRYPT, test.D + AES_BLOCK_SIZE*j,decrypt_private_key+AES_BLOCK_SIZE*j);
-//    printf("J is %d\n", j );
-//    printf("decrypt D is : %s\n",decrypt_private_key );
-  }
-  decrypt_private_key[sizeof(RSA_D)]='\0';
-  printf("decrypted D is : %s\n",decrypt_private_key );
-  //printf("Decrypted RSA_D value: %s\n", decrypt_private_key);
+        // following function will generate all the AES round keys for encryption
+        aes_setkey_enc(&aes,mkt,AES_KEY_SIZE_BITS);
 
-  for(j=0;j<sizeof(test.P)/AES_BLOCK_SIZE;++j){
-    aes_crypt_ecb(&aes,AES_DECRYPT, test.P + AES_BLOCK_SIZE*j,decrypt_private_key_P+AES_BLOCK_SIZE*j);
-  }
-  decrypt_private_key_P[sizeof(RSA_P)]='\0';
-  printf("decrypted RSA_P is : %s\n",decrypt_private_key_P );
+        for(j=0;j<sizeof(RSA_D)/AES_BLOCK_SIZE;++j){
+            aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_D + AES_BLOCK_SIZE*j,encrypted_RSA_D+AES_BLOCK_SIZE*j);
+        }
+        //printf("Original RSA_D value: %s\n", RSA_D );
+        //printf("Encrypted RSA_D value: %s\n", encrypted_RSA_D);
+        //printf("private key --> RSA_D encrypted \n");
 
-    // calling doAll Function with my custom stracture
-    result = doAll(rsa_ciphertext, &test);
+        for(j=0;j<sizeof(RSA_P)/AES_BLOCK_SIZE;++j){
+            aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_P + AES_BLOCK_SIZE*j,encrypted_RSA_P+AES_BLOCK_SIZE*j);
+        }
+        printf("private key --> RSA_P encrypted \n");
+
+        for(j=0;j<sizeof(RSA_Q)/AES_BLOCK_SIZE;++j){
+            aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_Q + AES_BLOCK_SIZE*j,encrypted_RSA_Q+AES_BLOCK_SIZE*j);
+        }
+        printf("private key --> RSA_Q encrypted \n");
+
+        for(j=0;j<sizeof(RSA_DP)/AES_BLOCK_SIZE;++j){
+            aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_DP + AES_BLOCK_SIZE*j,encrypted_RSA_DP+AES_BLOCK_SIZE*j);
+        }
+        printf("private key --> RSA_DP encrypted \n");
+
+        for(j=0;j<sizeof(RSA_DQ)/AES_BLOCK_SIZE;++j){
+            aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_DQ + AES_BLOCK_SIZE*j,encrypted_RSA_DQ+AES_BLOCK_SIZE*j);
+        }
+        printf("private key --> RSA_DQ encrypted \n");
+
+        for(j=0;j<sizeof(RSA_QP)/AES_BLOCK_SIZE;++j){
+            aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_QP + AES_BLOCK_SIZE*j,encrypted_RSA_QP+AES_BLOCK_SIZE*j);
+        }
+        printf("private key --> RSA_QP encrypted \n");
 
 
-  
+        // adding this encrypted keys into _key_rsa structure
+        memcpy(test.N, RSA_N, sizeof(RSA_N));
+        memcpy(test.E, RSA_E, sizeof(RSA_E));
+        memcpy(test.D, encrypted_RSA_D, sizeof(encrypted_RSA_D));
+        memcpy(test.P, encrypted_RSA_P, sizeof(encrypted_RSA_P));
+        memcpy(test.Q, encrypted_RSA_Q, sizeof(encrypted_RSA_Q));
+        memcpy(test.DP, encrypted_RSA_DP, sizeof(encrypted_RSA_DP));
+        memcpy(test.DQ, encrypted_RSA_DQ, sizeof(encrypted_RSA_DQ));
+        memcpy(test.QP, encrypted_RSA_QP, sizeof(encrypted_RSA_QP));
+        //printf("RSA Value of N :%s\n", test.N);
 
+        // calling Do all funciton here
+        result = doAll(rsa_ciphertext, &test);
+
+    }else {
+        printf("Something is wrong, check the requested serivce in the openssl engine (e_copker.c)\n");
+    }
+
+    return 0;
 
 
   
