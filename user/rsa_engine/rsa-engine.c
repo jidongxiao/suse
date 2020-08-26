@@ -108,10 +108,7 @@ int myrand( void *rng_state, unsigned char *output, size_t len )
 }
 
 
-int doAll(unsigned char *ciphertext, key_rsa *cipherKey){
-
-    printf("Inside: RSA Value of QP :%s\n", cipherKey->QP);
-
+int decryptmsg(unsigned char *ciphertext, key_rsa *cipherKey){
     int j;
 
     size_t len;
@@ -410,7 +407,7 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     memcpy(test.QP, RSA_QP, sizeof(RSA_QP));
 
     // calling Do all funciton here
-    result = doAll(from, &test);
+    result = decryptmsg(from, &test);
 
 
 }
