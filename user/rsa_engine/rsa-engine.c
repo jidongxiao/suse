@@ -88,14 +88,7 @@ typedef struct _key_rsa{
 }key_rsa;
 
 
-
-// plain text lenght
-#define PT_LEN  24
-char RSA_PT[] = "\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x41\x42\x43\x44\x45\x46\x47\x48\x49\x4A\x4B\x4C\x4D\x4E";
-
-
-int myrand( void *rng_state, unsigned char *output, size_t len )
-{
+int myrand( void *rng_state, unsigned char *output, size_t len ){
     size_t i;
 
     if( rng_state != NULL )
@@ -107,16 +100,15 @@ int myrand( void *rng_state, unsigned char *output, size_t len )
     return( 0 );
 }
 
-
 int decryptmsg(unsigned char *ciphertext, key_rsa *cipherKey){
     int j;
-
     size_t len;
     rsa_context rsa_polar;
-    unsigned char rsa_decrypted[PT_LEN];
-    unsigned char rsa_hash[PT_LEN];
-    unsigned char rsa_sig_out[PT_LEN];
-    unsigned char rsa_hash_result[PT_LEN];
+
+    int len_cipher= strlen(ciphertext);
+    unsigned char rsa_decrypted[len_cipher];
+
+    printf("Cipher text is ------\n %s\n", ciphertext);
 
     // Decrypted key storing buffer
     unsigned char decrypted_RSA_D[sizeof(RSA_D)];
@@ -131,7 +123,6 @@ int decryptmsg(unsigned char *ciphertext, key_rsa *cipherKey){
     rsa_polar.len = KEY_LEN;
 
     //reading public key from the key_rsa structure
-
     mpi_read_string( &rsa_polar.N , 16, cipherKey->N);
     mpi_read_string( &rsa_polar.E , 16, cipherKey->E);
 
@@ -142,17 +133,33 @@ int decryptmsg(unsigned char *ciphertext, key_rsa *cipherKey){
         printf( "Public key reading successful! \n" );
     }
 
-    /*Start: testing*/
+// decrypt rsa private key's with AES
+    aes_context aes;
+    aes_setkey_dec(&aes,mkt,AES_KEY_SIZE_BITS);
 
-    memcpy(decrypted_RSA_D, cipherKey->D, sizeof(cipherKey->D));
-    memcpy(decrypted_RSA_P, cipherKey->P, sizeof(cipherKey->P));
-    memcpy(decrypted_RSA_Q, cipherKey->Q, sizeof(cipherKey->Q));
-    memcpy(decrypted_RSA_DP, cipherKey->DP, sizeof(cipherKey->DP));
-    memcpy(decrypted_RSA_DQ, cipherKey->DQ, sizeof(cipherKey->DQ));
-    memcpy(decrypted_RSA_QP, cipherKey->QP, sizeof(cipherKey->QP));
+    for(j=0;j<sizeof(cipherKey->D)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_DECRYPT, cipherKey->D + AES_BLOCK_SIZE*j,decrypted_RSA_D+AES_BLOCK_SIZE*j);
+    }
 
+    for(j=0;j<sizeof(cipherKey->P)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_DECRYPT, cipherKey->P + AES_BLOCK_SIZE*j,decrypted_RSA_P+AES_BLOCK_SIZE*j);
+    }
 
-    /*End: testing*/
+    for(j=0;j<sizeof(cipherKey->Q)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_DECRYPT, cipherKey->Q + AES_BLOCK_SIZE*j,decrypted_RSA_Q+AES_BLOCK_SIZE*j);
+    }
+
+    for(j=0;j<sizeof(cipherKey->DP)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_DECRYPT, cipherKey->DP + AES_BLOCK_SIZE*j,decrypted_RSA_DP+AES_BLOCK_SIZE*j);
+    }
+
+    for(j=0;j<sizeof(cipherKey->DQ)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_DECRYPT, cipherKey->DQ + AES_BLOCK_SIZE*j,decrypted_RSA_DQ+AES_BLOCK_SIZE*j);
+    }
+
+    for(j=0;j<sizeof(cipherKey->QP)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_DECRYPT, cipherKey->QP + AES_BLOCK_SIZE*j,decrypted_RSA_QP+AES_BLOCK_SIZE*j);
+    }
 
     /*Adding Null at the end*/
 
@@ -163,7 +170,6 @@ int decryptmsg(unsigned char *ciphertext, key_rsa *cipherKey){
     decrypted_RSA_DQ[sizeof(RSA_DQ)-1]='\0';
     decrypted_RSA_QP[sizeof(RSA_QP)-1]='\0';
 
-    /**/
 
     //reading
     mpi_read_string( &rsa_polar.N , 16, RSA_N);
@@ -184,14 +190,12 @@ int decryptmsg(unsigned char *ciphertext, key_rsa *cipherKey){
         printf("Key reading success\n");
     }
 
-
-    if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len,
-                           ciphertext, rsa_decrypted,
-                           sizeof(rsa_decrypted) ) != 0 ) {
+    if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, ciphertext, rsa_decrypted, sizeof(rsa_decrypted) ) != 0 ) {
         printf( "Decryption failed! \n" );
         exit(0);
     }else{
-        printf("Decrypted plaintext %s\n",rsa_decrypted );
+        printf("Decrypted plaintext-----> %s\n",rsa_decrypted );
+
         // writing into output file
         FILE *fp;
         fp = fopen("msg.decrypt", "w+");
@@ -201,32 +205,10 @@ int decryptmsg(unsigned char *ciphertext, key_rsa *cipherKey){
 
     rsa_free(&rsa_polar);
 
-
     return 0;
-
 }
 
-
-
-
 // END: all the functions for RSA operation
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* Declared already in ossl_typ.h */
 /* typedef struct rsa_st RSA; */
@@ -276,30 +258,15 @@ struct rsa_meth_st {
 
      */
 
-    int (*rsa_sign) (int type,
+    int (*rsa_sign) (int type, const unsigned char *m, unsigned int m_length, unsigned char *sigret, unsigned int *siglen, const RSA *rsa);
 
-                     const unsigned char *m, unsigned int m_length,
-
-                     unsigned char *sigret, unsigned int *siglen,
-
-                     const RSA *rsa);
-
-    int (*rsa_verify) (int dtype, const unsigned char *m,
-
-                       unsigned int m_length, const unsigned char *sigbuf,
-
-                       unsigned int siglen, const RSA *rsa);
+    int (*rsa_verify) (int dtype, const unsigned char *m, unsigned int m_length, const unsigned char *sigbuf, unsigned int siglen, const RSA *rsa);
 
     /*
-
      * If this callback is NULL, the builtin software RSA key-gen will be
-
      * used. This is for behavioural compatibility whilst the code gets
-
      * rewired, but one day it would be nice to assume there are no such
-
      * things as "builtin software" implementations.
-
      */
 
     int (*rsa_keygen) (RSA *rsa, int bits, BIGNUM *e, BN_GENCB *cb);
@@ -313,9 +280,12 @@ static int eng_rsa_pub_enc (int flen, const unsigned char *from, unsigned char *
     printf ("Engine is encrypting using pub key \n");
     //RSA_public_encrypt (flen, from, to, rsa, RSA_PKCS1_PADDING);
 
-    //int result=-1;
+    // getting the lenght of msg.txt
+    int msg_len= strlen(from);
+    printf("Plain text is is ---- %s\n", from);
 
-    unsigned char rsa_plaintext[PT_LEN];
+
+    unsigned char rsa_plaintext[msg_len];
     unsigned char rsa_ciphertext[KEY_LEN];
 
     rsa_context rsa_polar;
@@ -332,10 +302,10 @@ static int eng_rsa_pub_enc (int flen, const unsigned char *from, unsigned char *
         exit(0);
     }
 
-    memcpy( rsa_plaintext, RSA_PT, PT_LEN+1 );
-    printf("plain text is: %s\n", rsa_plaintext);
+    // copy from msg.txt to rsa_plaintext
+    memcpy( rsa_plaintext, from, msg_len);
 
-    if( rsa_pkcs1_encrypt( &rsa_polar, &myrand, NULL, RSA_PUBLIC, PT_LEN, rsa_plaintext, rsa_ciphertext ) != 0 ) {
+    if( rsa_pkcs1_encrypt( &rsa_polar, &myrand, NULL, RSA_PUBLIC, msg_len, rsa_plaintext, rsa_ciphertext ) != 0 ) {
         printf( "Encryption failed! \n" );
         exit(0);
     }else {
@@ -343,48 +313,27 @@ static int eng_rsa_pub_enc (int flen, const unsigned char *from, unsigned char *
 
         // writing into output file
         FILE *fp;
+        //fp = fopen("to", "w+");
         fp = fopen("msg.enc", "w+");
         fprintf(fp, "%s", rsa_ciphertext);
         fclose(fp);
     }
-
-    // As of yet I did not use AES to encrypt private keys
-
-
 }
 
 
 
-static int eng_rsa_pub_dec (int flen, const unsigned char *from,
-
-                            unsigned char *to, RSA * rsa, int padding)
-
-{
-
-
-
+static int eng_rsa_pub_dec (int flen, const unsigned char *from, unsigned char *to, RSA * rsa, int padding){
     printf ("Engine is decrypting using pub key \n");
-
     //RSA_public_decrypt (flen, from, to, rsa, RSA_PKCS1_PADDING);
 
 }
 
-
-
-static int eng_rsa_priv_enc (int flen, const unsigned char *from, unsigned char *to,
-
-                             RSA * rsa, int padding __attribute__ ((unused)))
-
-{
+static int eng_rsa_priv_enc (int flen, const unsigned char *from, unsigned char *to, RSA * rsa, int padding __attribute__ ((unused))){
 
     printf ("Engine is encrypting using priv key \n");
-
     //RSA_private_encrypt (flen, from, to, rsa, RSA_PKCS1_PADDING);
 
 }
-
-
-
 
 
 static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char *to, RSA * rsa, int padding __attribute__ ((unused))){
@@ -392,23 +341,68 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     printf ("Engine is decrypting using priv key \n");
     //RSA_private_decrypt (flen, from, to, rsa, RSA_PKCS1_PADDING);
 
-    int result =-1;
+    int result =-1,j;
     rsa_context rsa_polar;
     key_rsa test;
+    size_t len;
+
+
+    // Will Encrypt RSA private key with AES to look like Mimosa
+
+    unsigned char encrypted_RSA_D[sizeof(RSA_D)];
+    unsigned char encrypted_RSA_P[sizeof(RSA_P)];
+    unsigned char encrypted_RSA_Q[sizeof(RSA_Q)];
+    unsigned char encrypted_RSA_DP[sizeof(RSA_DP)];
+    unsigned char encrypted_RSA_DQ[sizeof(RSA_DQ)];
+    unsigned char encrypted_RSA_QP[sizeof(RSA_QP)];
+
+
+    aes_context aes;
+    // following function will generate all the AES round keys for encryption
+    aes_setkey_enc(&aes,mkt,AES_KEY_SIZE_BITS);
+
+    for(j=0;j<sizeof(RSA_D)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_D + AES_BLOCK_SIZE*j,encrypted_RSA_D+AES_BLOCK_SIZE*j);
+    }
+    printf("private key --> RSA_D encrypted \n");
+
+    for(j=0;j<sizeof(RSA_P)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_P + AES_BLOCK_SIZE*j,encrypted_RSA_P+AES_BLOCK_SIZE*j);
+    }
+    printf("private key --> RSA_P encrypted \n");
+
+    for(j=0;j<sizeof(RSA_Q)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_Q + AES_BLOCK_SIZE*j,encrypted_RSA_Q+AES_BLOCK_SIZE*j);
+    }
+    printf("private key --> RSA_Q encrypted \n");
+
+    for(j=0;j<sizeof(RSA_DP)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_DP + AES_BLOCK_SIZE*j,encrypted_RSA_DP+AES_BLOCK_SIZE*j);
+    }
+    printf("private key --> RSA_DP encrypted \n");
+
+    for(j=0;j<sizeof(RSA_DQ)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_DQ + AES_BLOCK_SIZE*j,encrypted_RSA_DQ+AES_BLOCK_SIZE*j);
+    }
+    printf("private key --> RSA_DQ encrypted \n");
+
+    for(j=0;j<sizeof(RSA_QP)/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_QP + AES_BLOCK_SIZE*j,encrypted_RSA_QP+AES_BLOCK_SIZE*j);
+    }
+    printf("private key --> RSA_QP encrypted \n");
 
     // adding this encrypted keys into _key_rsa structure
     memcpy(test.N, RSA_N, sizeof(RSA_N));
     memcpy(test.E, RSA_E, sizeof(RSA_E));
-    memcpy(test.D, RSA_D, sizeof(RSA_D));
-    memcpy(test.P, RSA_P, sizeof(RSA_P));
-    memcpy(test.Q, RSA_Q, sizeof(RSA_Q));
-    memcpy(test.DP, RSA_DP, sizeof(RSA_DP));
-    memcpy(test.DQ, RSA_DQ, sizeof(RSA_DQ));
-    memcpy(test.QP, RSA_QP, sizeof(RSA_QP));
+    memcpy(test.D, encrypted_RSA_D, sizeof(encrypted_RSA_D));
+    memcpy(test.P, encrypted_RSA_P, sizeof(encrypted_RSA_P));
+    memcpy(test.Q, encrypted_RSA_Q, sizeof(encrypted_RSA_Q));
+    memcpy(test.DP, encrypted_RSA_DP, sizeof(encrypted_RSA_DP));
+    memcpy(test.DQ, encrypted_RSA_DQ, sizeof(encrypted_RSA_DQ));
+    memcpy(test.QP, encrypted_RSA_QP, sizeof(encrypted_RSA_QP));
 
     // calling Do all funciton here
-    result = decryptmsg(from, &test);
-
+    result = decryptmsg(from,&test);
 
 }
 
@@ -417,71 +411,36 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 /* Constants used when creating the ENGINE */
 
 static const char *engine_rsa_id = "rsa-engine-new";
-
 static const char *engine_rsa_name = "engine for testing 1";
 
-
-
 struct rsa_meth_st suse_rsa =
-
         {
-
                 "RSA engine for demo",
-
                 eng_rsa_pub_enc,
-
                 eng_rsa_pub_dec,
-
                 eng_rsa_priv_enc,
-
                 eng_rsa_priv_dec,
-
                 NULL,
-
                 NULL,
-
                 NULL,
-
                 NULL,
-
                 RSA_FLAG_CACHE_PUBLIC | RSA_FLAG_CACHE_PRIVATE,
-
                 NULL,
-
                 NULL,
-
                 NULL,
-
                 NULL
-
         };
 
 
 
-static int bind (ENGINE * e, const char *id)
-
-{
-
+static int bind (ENGINE * e, const char *id){
     printf ("%s\n", id);
 
-
-
-    if (!ENGINE_set_id (e, engine_rsa_id) ||
-
-        !ENGINE_set_name (e, engine_rsa_name) ||
-
-        !ENGINE_set_RSA (e, &suse_rsa))
-
+    if (!ENGINE_set_id (e, engine_rsa_id) || !ENGINE_set_name (e, engine_rsa_name) || !ENGINE_set_RSA (e, &suse_rsa))
         return 0;
 
-
-
     return 1;
-
 }
 
-
-
 IMPLEMENT_DYNAMIC_BIND_FN (bind)
-
 IMPLEMENT_DYNAMIC_CHECK_FN ()
