@@ -1,0 +1,1 @@
+cmd_/home/sourav/Downloads/Summer_project/suse_mine2/kernel/deviceDriver/deviceDriver.mod := { echo  /home/sourav/Downloads/Summer_project/suse_mine2/kernel/deviceDriver/deviceDriver.o; echo; } > /home/sourav/Downloads/Summer_project/suse_mine2/kernel/deviceDriver/deviceDriver.mod
