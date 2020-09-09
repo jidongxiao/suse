@@ -42,6 +42,8 @@ unsigned char mkt[16] = { \
 #define device "/proc/deviceDriver"
 #define buff_size 3
 
+# define KEY_BUFFER_SIZE 996 // this is for 1024-bit key. For different key lenght it will be different
+
 void clear_buffer (char *buffer){
     memset(buffer,0,buff_size);
 }
@@ -253,6 +255,61 @@ int myrand( void *rng_state, unsigned char *output, size_t len )
         output[i] = rand();
 
     return( 0 );
+}
+
+int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
+
+    int j;
+    aes_context aes;
+    rsa_context rsa_polar;
+
+    unsigned char private_decrypt[KEY_BUFFER_SIZE];
+
+
+    // performing decryption on encrypted keys, working
+    aes_setkey_dec(&aes,mkt,AES_KEY_SIZE_BITS);
+    for(j=0;j<KEY_BUFFER_SIZE/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_DECRYPT, private_encrypt + AES_BLOCK_SIZE*j,private_decrypt+AES_BLOCK_SIZE*j);
+    }
+
+    // for 1024 bit keys, removing the extra 10 padding
+    int N=11;
+    int len=strlen(private_decrypt);
+    private_decrypt[len-N]='\0';
+
+    printf("Decrypted private key is --> \n %s \n", private_decrypt);
+
+
+    //reading private.pem and perform decryption
+    rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
+    int len_cipher=strlen(from);
+    unsigned char decrypt_plaintext[len_cipher];
+
+
+    // read decrypted key from buffer into rsa_context
+    if (x509parse_key(&rsa_polar,private_decrypt,strlen(private_decrypt), "1234",4)!=0){
+        printf("Error code\n");
+    }else{
+        printf("Reading decrypted private key from buffer into rsa_context is success\n");
+    }
+
+    if( rsa_check_pubkey(  &rsa_polar ) != 0 ||rsa_check_privkey( &rsa_polar ) != 0 ) {
+        printf( "decryption : Public/Private key error! \n" );
+        exit(0);
+    }else{
+        printf("decryption :Key reading success\n");
+    }
+
+    if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 ) {
+        printf( "Decryption failed! \n" );
+        //printf("Error code,  %d",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
+        exit(0);
+    }else {
+        printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
+    }
+
+    exit(0);
+
 }
 
 int decryptmsg(unsigned char *ciphertext, key_rsa *cipherKey){
@@ -673,12 +730,13 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
        strncat(buffer,&ch,k);
        //printf("After padding: strlen(buffer)/AES_BLOCK_SIZE is \n %d\n", strlen(buffer)/AES_BLOCK_SIZE);
        printf("Padded buffer is \n %s\n", buffer);
+       printf("Padded buffer size \n %d\n", strlen(buffer));
 
    }
 
 
-    unsigned char private_encrypt[strlen(buffer)];
-    unsigned char private_decrypt[strlen(buffer)];
+    unsigned char private_encrypt[KEY_BUFFER_SIZE];
+    unsigned char private_decrypt[KEY_BUFFER_SIZE];
     int j;
 
     // following function will generate all the AES round keys for encryption
@@ -692,55 +750,66 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
 
 
-    // performing decryption on encrypted keys, working
-    aes_setkey_dec(&aes,mkt,AES_KEY_SIZE_BITS);
-    for(j=0;j<strlen(buffer)/AES_BLOCK_SIZE;++j){
-        aes_crypt_ecb(&aes,AES_DECRYPT, private_encrypt + AES_BLOCK_SIZE*j,private_decrypt+AES_BLOCK_SIZE*j);
-    }
 
-    // for 1024 bit keys
-    // removing the extra 10 padding
-    int N=0;
-    int len=strlen(private_decrypt);
-    private_decrypt[length-N]='\0';
+
+    // Calling decryption function here
+    result =decryptFunction(from, private_encrypt);
 
 
 
 
-    printf("Decrypted private key is --> \n %s \n", private_decrypt);
-    //printf("Decrypted private key lenght -->\n %d \n", strlen(private_decrypt));
-    //printf("strlen(private_encrypt)/AES_BLOCK_SIZE is \n %d\n", strlen(private_encrypt)/AES_BLOCK_SIZE);
 
 
-    //reading private.pem and perform decryption
-    rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
-    int len_cipher=strlen(from);
-    unsigned char decrypt_plaintext[len_cipher];
-
-
-    // read decrypted key from buffer into rsa_context
-    if (x509parse_key(&rsa_polar,private_decrypt,strlen(private_decrypt), "1234",4)!=0){
-        printf("Error code\n");
-    }else{
-        printf("Reading decrypted private key from buffer into rsa_context is success\n");
-    }
-
-    if( rsa_check_pubkey(  &rsa_polar ) != 0 ||rsa_check_privkey( &rsa_polar ) != 0 ) {
-        printf( "decryption : Public/Private key error! \n" );
-        exit(0);
-    }else{
-        printf("decryption :Key reading success\n");
-    }
-
-    if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 ) {
-        printf( "Decryption failed! \n" );
-        //printf("Error code,  %d",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
-        exit(0);
-    }else {
-        printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
-    }
-
-    exit(0);
+//
+//    // performing decryption on encrypted keys, working
+//    aes_setkey_dec(&aes,mkt,AES_KEY_SIZE_BITS);
+//    for(j=0;j<KEY_BUFFER_SIZE/AES_BLOCK_SIZE;++j){
+//        aes_crypt_ecb(&aes,AES_DECRYPT, private_encrypt + AES_BLOCK_SIZE*j,private_decrypt+AES_BLOCK_SIZE*j);
+//    }
+//
+//    // for 1024 bit keys
+//    // removing the extra 10 padding
+//    int N=0;
+//    int len=strlen(private_decrypt);
+//    private_decrypt[length-N]='\0';
+//
+//
+//
+//
+//    printf("Decrypted private key is --> \n %s \n", private_decrypt);
+//    //printf("Decrypted private key lenght -->\n %d \n", strlen(private_decrypt));
+//    //printf("strlen(private_encrypt)/AES_BLOCK_SIZE is \n %d\n", strlen(private_encrypt)/AES_BLOCK_SIZE);
+//
+//
+//    //reading private.pem and perform decryption
+//    rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
+//    int len_cipher=strlen(from);
+//    unsigned char decrypt_plaintext[len_cipher];
+//
+//
+//    // read decrypted key from buffer into rsa_context
+//    if (x509parse_key(&rsa_polar,private_decrypt,strlen(private_decrypt), "1234",4)!=0){
+//        printf("Error code\n");
+//    }else{
+//        printf("Reading decrypted private key from buffer into rsa_context is success\n");
+//    }
+//
+//    if( rsa_check_pubkey(  &rsa_polar ) != 0 ||rsa_check_privkey( &rsa_polar ) != 0 ) {
+//        printf( "decryption : Public/Private key error! \n" );
+//        exit(0);
+//    }else{
+//        printf("decryption :Key reading success\n");
+//    }
+//
+//    if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 ) {
+//        printf( "Decryption failed! \n" );
+//        //printf("Error code,  %d",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
+//        exit(0);
+//    }else {
+//        printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
+//    }
+//
+//    exit(0);
 
 
 
