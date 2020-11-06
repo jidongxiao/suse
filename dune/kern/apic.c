@@ -20,7 +20,7 @@ u32 dune_apic_id(void)
 }
 
 /* dune_highest_apic_id
- * Returns the highest APIC ID in the system
+ * Returns the highest APIC ID (Total number of physical CPU?) in the system
  */
 static u32 dune_highest_apic_id(bool *error)
 {
@@ -29,6 +29,8 @@ static u32 dune_highest_apic_id(bool *error)
 
 	if (error) *error = false;
 	for_each_possible_cpu(cpu) {
+
+	    // per_cpu() macro is used to get a particular processor value?
 		int apic_id = per_cpu(x86_cpu_to_apicid, cpu);
 		if (apic_id > ret) ret = apic_id;
 	}
@@ -43,11 +45,18 @@ bool dune_apic_init(void)
 {
 	u32 highest_apic_id;
 	bool error;
+
+	/* get the total Number of physical cpu?*/
 	highest_apic_id = dune_highest_apic_id(&error);
 	if (error) {
 		return false;
 	}
 	num_rt_entries = highest_apic_id + 1;
+
+	/*
+	 *kmalloc flag GFP_KERNEL, means that the allocation
+	 * is performed on behalf of a process running in kernel space
+	 * */
 	apic_routing = kmalloc(num_rt_entries * sizeof(int), GFP_KERNEL);
 	if (!apic_routing) {
 		return false;

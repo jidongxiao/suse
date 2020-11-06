@@ -43,6 +43,7 @@ static int dune_is_in_guest(void)
 
 static int dune_is_user_mode(void)
 {
+       // So, it's not a user mode.
         return 0;
 }
 
@@ -74,6 +75,10 @@ static long dune_dev_ioctl(struct file *filp,
 
 	switch (ioctl) {
 	case DUNE_ENTER:
+	    /*Successful return of copy_from_user() function is unexpected? or if the
+	     * functions fails for some reason it retun some error code?
+	     * If copy_from_user() is successful then initial value of r doesn't change?
+	     * */
 		r = copy_from_user(&conf, (int __user *) arg,
 				   sizeof(struct dune_config));
 		if (r) {
@@ -151,6 +156,12 @@ static struct miscdevice dune_dev = {
 static int __init dune_init(void)
 {
 	int r;
+
+	/*
+	 * what the following function doing?
+	 * Give wrong abstraction that process requesting dune is running in kernel mode
+	 * Initialize local_cpu (per_cpu data) and returning the Guest RIP ?
+	 * */
 	perf_register_guest_info_callbacks(&dune_guest_cbs);
 
 	printk(KERN_ERR "Dune module loaded\n");

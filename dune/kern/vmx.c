@@ -66,6 +66,13 @@
 
 static atomic_t vmx_enable_failed;
 
+/*
+ * vpid = Virtual Processor ID?
+ * Declearing bitmap. vmx_vpid_bitmap is the name and VMX_NR_VPIDS is number of bits
+ * #define VMX_NR_VPIDS	  (1 << 16), is it fixed? dose it mean total 2^16 virtual processor
+ * possible?
+ *
+ */
 static DECLARE_BITMAP(vmx_vpid_bitmap, VMX_NR_VPIDS);
 static DEFINE_SPINLOCK(vmx_vpid_lock);
 
@@ -183,7 +190,9 @@ static inline bool cpu_has_posted_interrupts(void)
 	return (vmx_capability.pin_based >> 32) & PIN_BASED_POSTED_INTR;
 }
 
-// what does the following function actually doing?
+/* what does the following function actually doing?
+ * Invalid ept ? but why and when?
+ * */
 static inline void __invept(int ext, u64 eptp, gpa_t gpa)
 {
 	struct {
@@ -361,6 +370,8 @@ static __init int adjust_vmx_controls(u32 ctl_min, u32 ctl_opt,
 	ctl |= vmx_msr_low;  /* bit == 1 in low word  ==> must be one  */
 
 	/* Ensure minimum (required) set of control bits are supported. */
+	/**"~" is Binary One's Complement (bit flip) Operator is unary and has the
+	 * effect of 'flipping' bits.*/
 	if (ctl_min & ~ctl)
 		return -EIO;
 
@@ -376,6 +387,10 @@ static __init bool allow_1_setting(u32 msr, u32 ctl)
 	return vmx_msr_high & ctl;
 }
 
+/*
+ * Need help on this function
+ * */
+
 static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 {
 	u32 vmx_msr_low, vmx_msr_high;
@@ -386,8 +401,11 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 	u32 _vmexit_control = 0;
 	u32 _vmentry_control = 0;
 
+	// what is the following two veriables used for?
 	min = PIN_BASED_EXT_INTR_MASK | PIN_BASED_NMI_EXITING;
 	opt = PIN_BASED_VIRTUAL_NMIS | PIN_BASED_POSTED_INTR;
+
+	/*What am I adjusting?*/
 	if (adjust_vmx_controls(min, opt, MSR_IA32_VMX_PINBASED_CTLS,
 				&_pin_based_exec_control) < 0)
 		return -EIO;
@@ -841,14 +859,14 @@ static void vmx_dump_cpu(struct vmx_vcpu *vcpu)
 	printk(KERN_INFO "vmx: --- End VCPU Dump ---\n");
 }
 
-/**
+/*
  * located in asm/vmx.h, this header is already included at the begining
  * For some reason it's not recognizing.
  * */
-//#define VMX_EPT_DEFAULT_MT			0x6ull
-//#define VMX_EPT_DEFAULT_GAW			3
-//#define VMX_EPT_GAW_EPTP_SHIFT			3
-//#define VMX_EPT_AD_ENABLE_BIT			(1ull << 6)
+#define VMX_EPT_DEFAULT_MT			0x6ull
+#define VMX_EPT_DEFAULT_GAW			3
+#define VMX_EPT_GAW_EPTP_SHIFT			3
+#define VMX_EPT_AD_ENABLE_BIT			(1ull << 6)
 
 static u64 construct_eptp(unsigned long root_hpa)
 {
@@ -865,7 +883,7 @@ static u64 construct_eptp(unsigned long root_hpa)
 	return eptp;
 }
 
-/**
+/*
  * vmx_setup_initial_guest_state - configures the initial state of guest registers
  */
 static void vmx_setup_initial_guest_state(struct dune_config *conf)
@@ -1175,6 +1193,8 @@ static void vmx_setup_vmcs(struct vmx_vcpu *vcpu)
 	vmx_setup_constant_host_state(vcpu);
 }
 
+
+
 /**
  * vmx_allocate_vpid - reserves a vpid and sets it in the VCPU
  * @vmx: the VCPU
@@ -1186,6 +1206,14 @@ static int vmx_allocate_vpid(struct vmx_vcpu *vmx)
 	vmx->vpid = 0;
 
 	spin_lock(&vmx_vpid_lock);
+
+	/* Find the first clear (0) bit, starting from vmx_vpid_bitmap memory address.
+	 * total number of bit to search is VMX_NR_VPIDS
+	 *
+	 * Returns the bit-number of the first zero bit,
+	 * not the number of the byte containing a bit. So, It will find bit 0 in 0 position.
+	 * because we set bit 0 to 0 during vmx_vpid_bitmap declearation.
+	*/
 	vpid = find_first_zero_bit(vmx_vpid_bitmap, VMX_NR_VPIDS);
 	if (vpid < VMX_NR_VPIDS) {
 		vmx->vpid = vpid;
@@ -1260,6 +1288,15 @@ static void vmx_copy_registers_to_conf(struct vmx_vcpu *vcpu, struct dune_config
 }
 
 /**
+ * Following function is copied form kernel 4.40, vmx_create_vcpu use this function
+ * but could not find in the current kernel asm/desc.h file
+ * */
+static inline void native_store_idt(struct desc_ptr *dtr)
+{
+    asm volatile("sidt %0":"=m" (*dtr));
+}
+
+/**
  * vmx_create_vcpu - allocates and initializes a new virtual cpu
  *
  * Returns: A new VCPU structure
@@ -1299,7 +1336,13 @@ static struct vmx_vcpu * vmx_create_vcpu(struct dune_config *conf)
 	vcpu->cpu = -1;
 	vcpu->syscall_tbl = (void *) &dune_syscall_tbl;
 
+	/*
+	 * This function is here : https://elixir.bootlin.com/linux/v4.4/source/arch/x86/include/asm/desc.h#L231
+	 * version before 4.40 did not have it?
+	 * I copied the function from 4.40, defination is right above this function
+	 */
 	native_store_idt(&dt);
+
 	vcpu->idt_base = (void *)dt.address;
 
 	spin_lock_init(&vcpu->ept_lock);
@@ -1869,7 +1912,9 @@ static void vmx_handle_external_interrupt(struct vmx_vcpu *vcpu, u32 exit_intr_i
 		register unsigned long current_stack_pointer asm(_ASM_SP);
 		vector =  exit_intr_info & INTR_INFO_VECTOR_MASK;
 		desc = (gate_desc *)vcpu->idt_base + vector;
-		entry = gate_offset(*desc);
+		//Original line
+        //entry = gate_offset(*desc);
+		entry = gate_offset(desc);
 
 		if (vector == POSTED_INTR_VECTOR) {
 			dune_apic_write_eoi();
@@ -2189,6 +2234,11 @@ __init int vmx_init(void)
 
 	vmx_init_syscall();
 
+	/** Setting up vmcs_config structure
+	 * adjust PIN base or processor base VM execution settings
+	 *
+	 * Need more help on this function
+	 * */
 	if (setup_vmcs_config(&vmcs_config) < 0)
 		return -EIO;
 
@@ -2234,8 +2284,12 @@ __init int vmx_init(void)
 		__vmx_disable_intercept_for_msr(msr_bitmap, APIC_BASE_MSR + (APIC_EOI >> 4));
 	}
 
-	/*Get the highest number of logical processor, allocate memory for total number of
+	/*
+	 * Get the highest number of logical processor, allocate memory for total number of
 	 * processor. Use memory fencing to prevent out of order execution?
+	 *
+	 * Start APIC virtualization for dune. Allocate memory for process that request
+	 * dune service.
 	 * */
 	if (!dune_apic_init()) {
 		printk(KERN_ERR "vmx: could not initialize APIC routing table\n");
@@ -2243,11 +2297,11 @@ __init int vmx_init(void)
 	}
 
 	/*
+	 * Clear both virtual_apic_pages & posted_interrupt_descriptors memory
 	 */
 	memset(virtual_apic_pages, 0, sizeof(void *) * NR_CPUS);
 	memset(posted_interrupt_descriptors, 0, sizeof(posted_interrupt_desc *) * NR_CPUS);
 	for_each_possible_cpu(cpu) {
-
 	    /*Allocate free page for each available cpu*/
 		virtual_apic_pages[cpu] = (void *)__get_free_page(GFP_KERNEL);
 		if (!virtual_apic_pages[cpu]) {
@@ -2256,6 +2310,7 @@ __init int vmx_init(void)
 		}
 
 		/*
+		 * Why clearing the allocated pages?
 		 * What is the differece between this memset and previous memset? Why?
 		 * */
 		memset(virtual_apic_pages[cpu], 0x00, PAGE_SIZE);

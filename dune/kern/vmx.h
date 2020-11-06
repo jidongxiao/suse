@@ -16,6 +16,17 @@ struct vmcs {
 	char data[0];
 };
 
+/*
+ * Traditionally, every time a hypervisor switched execution between
+ * different VMs, the VM and its data structure had to be flushed out of the
+ * transition look-aside buffers (TLB) associated with the CPU caches, since
+ * the hypervisor had no information on which cache line was associated with
+ * any particular VM. With virtual processor IDs (VPID), a VM ID tag in the CPU hardware structures
+ * (e.g., TLB) associates cache lines with each VM actively running on the CPU.
+ * This permits the CPU to flush only the cache lines associated with a particular
+ * VM when it is flushed from the CPU, avoiding the need to reload cache lines
+ * for a VM that was not migrated and resulting in lower overhead.
+ * */
 struct vmx_capability {
 	u64 pin_based;
 	u64 secondary;
