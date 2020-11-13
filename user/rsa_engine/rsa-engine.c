@@ -24,8 +24,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <stdlib.h>
 
-
+// dune lib
+#include "libdune/dune.h"
+#include "libdune/cpu-x86.h"
 
 // Start: all the functions for RSA operation
 
@@ -39,148 +42,14 @@ unsigned char mkt[16] = { \
 
 #define errExit(msg)    do { perror(msg); exit(EXIT_FAILURE); \
                                } while (0)
-#define device "/proc/deviceDriver"
 #define buff_size 3
 
-# define KEY_BUFFER_SIZE 996 // this is for 1024-bit key. For different key lenght it will be different
+# define KEY_BUFFER_SIZE 992 // this is for 1024-bit key. For different key lenght it will be different
 #define KEY_LEN 128
 
 
 void clear_buffer (char *buffer){
     memset(buffer,0,buff_size);
-}
-
-void enable_interrupt(){
-    int fd;
-    char buff[buff_size];
-    int count=1; //count should be less then the buff size
-    //char message[]="Hello";
-    //char message[0]="1";
-    int rv;
-    clear_buffer(buff);
-
-    fd=open(device, O_RDWR, S_IWUSR | S_IRUSR);
-    if(fd==-1){
-        // was throwing error. I fixed it by giving permission
-        //  sudo chmod 0777/0666 deviceDriver
-        fprintf(stderr, "Error Opening device File\n");
-        exit(-1);
-    }
-
-    //writing to device
-    printf("enable_interrupt\n");
-    //strcpy(buff,message);
-    strcpy(buff,"1");
-    rv=write(fd,buff,count);
-    if (rv==-1){
-        fprintf(stderr, "Error while writing\n");
-        exit(0);
-    }
-
-    rv=close(fd);
-    if (rv==-1){
-        fprintf(stderr, "Error while closing\n");
-        exit(0);
-    }
-
-}
-
-void disable_interrupt(){
-    int fd;
-    char buff[buff_size];
-    int count=1; //count should be less then the buff size
-    //char message[]="Hello";
-    //char message[0]="1";
-    int rv;
-    clear_buffer(buff);
-
-    fd=open(device, O_RDWR, S_IWUSR | S_IRUSR);
-    if(fd==-1){
-        // was throwing error. I fixed it by giving permission
-        //  sudo chmod 0777/0666 deviceDriver
-        fprintf(stderr, "Error Opening device File\n");
-        exit(-1);
-    }
-
-    //writing to device
-    printf("disable_interrupt\n");
-    //strcpy(buff,message);
-    strcpy(buff,"0");
-    rv=write(fd,buff,count);
-    if (rv==-1){
-        fprintf(stderr, "Error while writing\n");
-        exit(0);
-    }
-
-    rv=close(fd);
-    if (rv==-1){
-        fprintf(stderr, "Error while closing\n");
-        exit(0);
-    }
-}
-
-char check_interruptStatus(){
-
-    int fd;
-    char buff[buff_size];
-    int count=1; //count should be less then the buff size
-    //char message[]="Hello";
-    //char message[0]="1";
-    int rv;
-
-    // Clear Buffer
-    clear_buffer(buff);
-
-    fd=open(device, O_RDWR, S_IWUSR | S_IRUSR);
-    if(fd==-1){
-        // was throwing error. I fixed it by giving permission
-        //  sudo chmod 0777/0666 deviceDriver
-        fprintf(stderr, "Error Opening device File\n");
-        exit(-1);
-    }
-
-    printf("Reading from the %s\n", device);
-    rv= read(fd, buff,count);
-    if (rv==-1){
-        fprintf(stderr, "Error while reading\n");
-        exit(-1);
-    }
-    printf(" %d char from %s is %s. \n",rv,device, buff);
-
-    for(int i=0;i<sizeof(buff);i++){
-        printf("Buff[%d] is %c\n",i,buff[i]);
-    }
-    rv=close(fd);
-    if (rv==-1){
-        fprintf(stderr, "Error while closing\n");
-        exit(-1);
-    }
-    return buff[0];
-
-}
-
-int test_otherfunction(int a, int b){
-    int c=0;
-    for (int i=0; i<1000000;i++){
-        c=c+a+b;
-        //printf("%d\n",c);
-    }
-//    for (int i=0; i<1000000;i++){
-//        c=c+a+b;
-//        //printf("%d\n",c);
-//    }
-    // RTM did Succeeded, but after some tires
-
-//    for (int i=0; i<1000000;i++){
-//        c=c+a+b;
-//        //printf("%d\n",c);
-//    }
-//    for (int i=0; i<1000000;i++){
-//        c=c+a+b;
-//        //printf("%d\n",c);
-//    }
-
-    return 1;
 }
 
 int myrand( void *rng_state, unsigned char *output, size_t len )
@@ -198,133 +67,70 @@ int myrand( void *rng_state, unsigned char *output, size_t len )
 
 int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
 
+    //printf("decryptFunction\n");
     int j, result=-1;
-    int N=6;
+    //int N=7;
     aes_context aes;
     rsa_context rsa_polar;
 
     rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
 
-    int len_cipher=strlen(from);
-    unsigned char decrypt_plaintext[len_cipher]; // lencipher is causuing failure, need to find a size in Byte
+
+//    int len_cipher=strlen(from);
+//    unsigned char decrypt_plaintext[len_cipher]; // lencipher is causuing failure, need to find a size in Byte
 
     unsigned char private_decrypt[KEY_BUFFER_SIZE];
 
-    // this should be inside RTM, this is the main AES master key
+    // performing decryption on encrypted keys, working
     aes_setkey_dec(&aes,mkt,AES_KEY_SIZE_BITS);
-
-    unsigned status;
-    while(result!=1){
-        if ((status = _xbegin()) == _XBEGIN_STARTED) {
-
-
-            for(j=0;j<KEY_BUFFER_SIZE/AES_BLOCK_SIZE;++j){
-                aes_crypt_ecb(&aes,AES_DECRYPT, private_encrypt + AES_BLOCK_SIZE*j,private_decrypt+AES_BLOCK_SIZE*j);
-            }
-
-            // for 1024 bit keys, removing the extra 10 padding
-            int len=strlen(private_decrypt);
-            private_decrypt[len-N]='\0';
-
-// Following code, causing RTM abort
-//            if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 )
-//                exit(0);
-
-            result=1;
-            _xend();
-        }else{
-            printf("Block 1: Transaction failed\n");
-            printf("status is %ld\n", status);
-            //break;
-        }
-        printf("Block 1: Result is %d\n", result);
+    for(j=0;j<KEY_BUFFER_SIZE/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_DECRYPT, private_encrypt + AES_BLOCK_SIZE*j,private_decrypt+AES_BLOCK_SIZE*j);
     }
-    printf("First Block working\n", result);
-    printf("Decrypted private key is --> \n %s \n", private_decrypt);
 
-    // First block working
+    // for 1024 bit keys, removing the extra 10 padding
+    int N=11;
+    int len=strlen(private_decrypt);
+    private_decrypt[len-N]='\0';
+
+    //printf("Decrypted private key is --> \n %s \n", private_decrypt);
+
+
+    //reading private.pem and perform decryption
+    rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
+    int len_cipher=strlen(from);
+    unsigned char decrypt_plaintext[len_cipher];
+
+
+    // read decrypted key from buffer into rsa_context
+    if (x509parse_key(&rsa_polar,private_decrypt,strlen(private_decrypt), "1234",4)!=0){
+        //printf("Error code\n");
+    }else{
+        //printf("Reading decrypted private key from buffer into rsa_context is success\n");
+    }
+
+    if( rsa_check_pubkey(  &rsa_polar ) != 0 ||rsa_check_privkey( &rsa_polar ) != 0 ) {
+        //printf( "decryption : Public/Private key error! \n" );
+        exit(0);
+    }else{
+        //printf("decryption :Key reading success\n");
+    }
+
+    if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 ) {
+        //if( rsa_private(&rsa_polar, &myrand, NULL, from, decrypt_plaintext)!=0){
+        //printf( "Decryption failed! \n" );
+        //printf("Error code,  %d",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
+        exit(0);
+    }else {
+        //printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
+    }
+
+
+
+// RTM ENDS: here
+
     //exit(0);
 
-
-    // RTM BLOCK 2
-    result=-1;
-    unsigned block;
-
-    int key_len= KEY_LEN;
-
-    while(result!=1){
-        if ((block = _xbegin()) == _XBEGIN_STARTED) {
-            if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &key_len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 )
-                exit(0);
-            //rsa_free(&rsa_polar);
-            result=1;
-            _xend();
-        }else{
-            printf("RTM 2: Transaction failed\n");
-            printf("status is %ld\n", block);
-            //break;
-        }
-        printf("Block 2: Result is %d\n", result);
-    }
-
-
-
-
-
-
-
-
-
-    printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
-    exit(0);
-
-    return result;
-
-
-    // performing decryption on encrypted keys, working
-//    aes_setkey_dec(&aes,mkt,AES_KEY_SIZE_BITS);
-//    for(j=0;j<KEY_BUFFER_SIZE/AES_BLOCK_SIZE;++j){
-//        aes_crypt_ecb(&aes,AES_DECRYPT, private_encrypt + AES_BLOCK_SIZE*j,private_decrypt+AES_BLOCK_SIZE*j);
-//    }
-//
-//    // for 1024 bit keys, removing the extra 10 padding
-//    int N=11;
-//    int len=strlen(private_decrypt);
-//    private_decrypt[len-N]='\0';
-//
-//    printf("Decrypted private key is --> \n %s \n", private_decrypt);
-//
-//
-//    //reading private.pem and perform decryption
-//    rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
-//    int len_cipher=strlen(from);
-//    unsigned char decrypt_plaintext[len_cipher];
-//
-//
-//    // read decrypted key from buffer into rsa_context
-//    if (x509parse_key(&rsa_polar,private_decrypt,strlen(private_decrypt), "1234",4)!=0){
-//        printf("Error code\n");
-//    }else{
-//        printf("Reading decrypted private key from buffer into rsa_context is success\n");
-//    }
-//
-//    if( rsa_check_pubkey(  &rsa_polar ) != 0 ||rsa_check_privkey( &rsa_polar ) != 0 ) {
-//        printf( "decryption : Public/Private key error! \n" );
-//        exit(0);
-//    }else{
-//        printf("decryption :Key reading success\n");
-//    }
-//
-//    if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 ) {
-//    //if( rsa_private(&rsa_polar, &myrand, NULL, from, decrypt_plaintext)!=0){
-//        printf( "Decryption failed! \n" );
-//        printf("Error code,  %d",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
-//        exit(0);
-//    }else {
-//        printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
-//    }
-//
-//    exit(0);
+    return 1;
 
 }
 
@@ -450,8 +256,8 @@ static int eng_rsa_pub_enc (int flen, const unsigned char *from, unsigned char *
 
     if( rsa_pkcs1_encrypt( &rsa_polar, &myrand, NULL, RSA_PUBLIC, msg_len, rsa_plaintext, rsa_ciphertext ) != 0 ) {
 
-    // Following is working
-    //if( rsa_public(&rsa_polar, rsa_plaintext, rsa_ciphertext) != 0 ) {
+        // Following is working
+        //if( rsa_public(&rsa_polar, rsa_plaintext, rsa_ciphertext) != 0 ) {
         printf( "Encryption failed! \n" );
         exit(0);
     }else {
@@ -545,27 +351,27 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
 
     //call a function for padding the buffer to make it multiple of 16
-   if(strlen(buffer)%AES_BLOCK_SIZE == 0){
-       printf("No padding needed\n");
-   }else{
-       //printf("padding needed: %i\n", strlen(buffer)%AES_BLOCK_SIZE );
-       int k=AES_BLOCK_SIZE-(strlen(buffer)%AES_BLOCK_SIZE);
-       printf("padding needed: %d\n", k );
+    if(strlen(buffer)%AES_BLOCK_SIZE == 0){
+        printf("No padding needed\n");
+    }else{
+        //printf("padding needed: %i\n", strlen(buffer)%AES_BLOCK_SIZE );
+        int k=AES_BLOCK_SIZE-(strlen(buffer)%AES_BLOCK_SIZE);
+        printf("padding needed: %d\n", k );
 
-       // adding extra 10 char for 1024-bit key. For 2048-bit key this padding will be different
-       //char ch[10]={'0','0','0','0','0','0','0','0','0','0'};
-       char ch[k];
-       for (int i=0;i<k;i++){
-           ch[i]='0';
-       }
-       strncat(buffer,&ch,k);
+        // adding extra 10 char for 1024-bit key. For 2048-bit key this padding will be different
+        //char ch[10]={'0','0','0','0','0','0','0','0','0','0'};
+        char ch[k];
+        for (int i=0;i<k;i++){
+            ch[i]='0';
+        }
+        strncat(buffer,&ch,k);
 
-       //printf("After padding: Wish to see 0 here in output, strlen(buffer)/AES_BLOCK_SIZE is  %d\n", strlen(buffer)%AES_BLOCK_SIZE);
-       //printf("Padded buffer is \n %s\n", buffer);
-       //printf("Padded buffer size \n %d\n", strlen(buffer));
+        //printf("After padding: Wish to see 0 here in output, strlen(buffer)/AES_BLOCK_SIZE is  %d\n", strlen(buffer)%AES_BLOCK_SIZE);
+        //printf("Padded buffer is \n %s\n", buffer);
+        //printf("Padded buffer size \n %d\n", strlen(buffer));
 
 
-   }
+    }
 
 
     unsigned char private_encrypt[KEY_BUFFER_SIZE];
@@ -583,45 +389,47 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
 
 
-//using RTM, bind dec decryptmsg() into a particular CPU
-    cpu_set_t set;
-    int parentCPU, childCPU;
-    childCPU = 1;
-    parentCPU = 0;
+    // Calling decryption function here
 
-    CPU_ZERO(&set);
-    switch (fork()) {
-        case -1:            //error
-            errExit("fork");
 
-        case 0:             // Child
-            CPU_SET(childCPU, &set);
+    // DUNE starts
+    volatile int ret;
+    printf("hello: not running dune yet\n");
 
-            if (sched_setaffinity(getpid(), sizeof(set), &set) == -1)
-            //if (sched_setaffinity(1, sizeof(set), &set) == -1)
-                errExit("sched_setaffinity");
+    ret = dune_init_and_enter();
+    if (ret) {
+        printf("failed to initialize dune\n");
+        return ret;
+    }
+    printf("hello: now printing from dune mode\n");
+    // RTM starts
+    int check=-1;
+    unsigned status;
+    asm volatile("cli": : :"memory");
+    while(check!=1){
+        if ((status = _xbegin()) == _XBEGIN_STARTED) {
+            if(decryptFunction(from, private_encrypt))
+                check=1;
+            _xend();
+        }else{
+            printf("RTM: Transaction failed\n");
+            printf("status is %ld\n", status);
+            //break;
+        }
+        asm volatile("sti": : :"memory");
+        printf("RTM : Check is %d\n", check);
+        //asm volatile("sti": : :"memory");
 
-            //calling decryption function from here
-            result =decryptFunction(from, private_encrypt);
-            printf("result %d\n", result);
-
-            exit(0);
-
-        default:            // parent
-            CPU_SET(parentCPU, &set);
-
-            if (sched_setaffinity(getpid(), sizeof(set), &set) == -1)
-                errExit("sched_setaffinity");
-
-            wait(NULL);     // Wait for child to terminate
-            exit(EXIT_SUCCESS);
     }
 
 
 
-    // Calling decryption function here
 
-    printf("after operation, result is %d\n",result);
+    //result =decryptFunction(from, private_encrypt);
+
+
+    // RTM ends
+    //printf("after operation, result is %d\n",result);
 
 }
 
