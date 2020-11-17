@@ -1,0 +1,33 @@
+rsa-engine: rsa-engine.c rsa/rsa.c rsa/bignum.c rsa/aes.c rsa/x509parse.c rsa/pem.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/rsa.o -c rsa/rsa.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/bignum.o -c rsa/bignum.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/aes.o -c rsa/aes.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/x509parse.o -c rsa/x509parse.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/pem.o -c rsa/pem.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/des.o -c rsa/des.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/asn1parse.o -c rsa/asn1parse.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/md5.o -c rsa/md5.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/certs.o -c rsa/certs.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/sha1.o -c rsa/sha1.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/sha4.o -c rsa/sha4.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/sha2.o -c rsa/sha2.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/dhm.o -c rsa/dhm.c
+	gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -o rsa/base64.o -c rsa/base64.c
+	#gcc -mrtm -fPIC -Wall -g -MD -O2 -I ../ -c rsa-engine.c
+	#gcc -o rsa-engine rsa-engine.o libdune/libdune.a -static $(<) -L../libdune/ -ldune -lpthread
+	
+
+	#gcc -mrtm -fPIC -Wall -g -MD -O2 -I -ldune -lpthread -c rsa-engine.c libdune/libdune.a -static $(<) -L../libdune/ 
+	
+
+	# Following Line compile but do not work
+	gcc -mrtm -fPIC -Wall -g -MD -O2 -I ../ -c -ldune -lpthread -static rsa-engine.c $(<) -L/libdune/libdune.a
+
+	#gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -c rsa-engine.c -ldune -lpthread libdune/libdune.a
+	#gcc -mrtm -fPIC  -Wall -g -MD -O2 -I ../ -c rsa-engine.c -ldune -lpthread -static $(<) -L libdune/libdune.a
+
+	gcc -shared -o librsa_engine.so -lcrypto rsa-engine.o rsa/rsa.o rsa/bignum.o rsa/aes.o rsa/x509parse.o rsa/pem.o rsa/des.o rsa/asn1parse.o rsa/md5.o rsa/certs.o rsa/sha1.o rsa/dhm.o rsa/base64.o rsa/sha4.o rsa/sha2.o
+	mv librsa_engine.so rsa-engine-new.so
+	sudo cp rsa-engine-new.so /opt/openssl/lib/engines-1.1/
+clean: 
+	rm -f *.o rsa/*.o *.so rsa-engine

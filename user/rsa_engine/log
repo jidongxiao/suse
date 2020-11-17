@@ -1,0 +1,242 @@
+execve("/usr/bin/make", ["make"], [/* 23 vars */]) = 0
+brk(NULL)                               = 0x129b000
+access("/etc/ld.so.nohwcap", F_OK)      = -1 ENOENT (No such file or directory)
+access("/etc/ld.so.preload", R_OK)      = -1 ENOENT (No such file or directory)
+open("/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+fstat(3, {st_mode=S_IFREG|0644, st_size=103806, ...}) = 0
+mmap(NULL, 103806, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7fe78315f000
+close(3)                                = 0
+access("/etc/ld.so.nohwcap", F_OK)      = -1 ENOENT (No such file or directory)
+open("/lib/x86_64-linux-gnu/libdl.so.2", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\240\r\0\0\0\0\0\0"..., 832) = 832
+fstat(3, {st_mode=S_IFREG|0644, st_size=14608, ...}) = 0
+mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7fe78315e000
+mmap(NULL, 2109680, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7fe782d50000
+mprotect(0x7fe782d53000, 2093056, PROT_NONE) = 0
+mmap(0x7fe782f52000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x2000) = 0x7fe782f52000
+close(3)                                = 0
+access("/etc/ld.so.nohwcap", F_OK)      = -1 ENOENT (No such file or directory)
+open("/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0`\t\2\0\0\0\0\0"..., 832) = 832
+fstat(3, {st_mode=S_IFREG|0755, st_size=1868984, ...}) = 0
+mmap(NULL, 3971488, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7fe782986000
+mprotect(0x7fe782b46000, 2097152, PROT_NONE) = 0
+mmap(0x7fe782d46000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1c0000) = 0x7fe782d46000
+mmap(0x7fe782d4c000, 14752, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7fe782d4c000
+close(3)                                = 0
+mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7fe78315d000
+mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7fe78315c000
+mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7fe78315b000
+arch_prctl(ARCH_SET_FS, 0x7fe78315c700) = 0
+mprotect(0x7fe782d46000, 16384, PROT_READ) = 0
+mprotect(0x7fe782f52000, 4096, PROT_READ) = 0
+mprotect(0x630000, 4096, PROT_READ)     = 0
+mprotect(0x7fe783179000, 4096, PROT_READ) = 0
+munmap(0x7fe78315f000, 103806)          = 0
+getrlimit(RLIMIT_STACK, {rlim_cur=8192*1024, rlim_max=RLIM64_INFINITY}) = 0
+setrlimit(RLIMIT_STACK, {rlim_cur=RLIM64_INFINITY, rlim_max=RLIM64_INFINITY}) = 0
+brk(NULL)                               = 0x129b000
+brk(0x12bc000)                          = 0x12bc000
+open("/usr/lib/locale/locale-archive", O_RDONLY|O_CLOEXEC) = 3
+fstat(3, {st_mode=S_IFREG|0644, st_size=2981280, ...}) = 0
+mmap(NULL, 2981280, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7fe7826ae000
+close(3)                                = 0
+rt_sigaction(SIGHUP, {0x409b80, [HUP], SA_RESTORER|SA_RESTART, 0x7fe7829bb4c0}, {SIG_DFL, [], 0}, 8) = 0
+rt_sigaction(SIGQUIT, {0x409b80, [QUIT], SA_RESTORER|SA_RESTART, 0x7fe7829bb4c0}, {SIG_DFL, [], 0}, 8) = 0
+rt_sigaction(SIGINT, {0x409b80, [INT], SA_RESTORER|SA_RESTART, 0x7fe7829bb4c0}, {SIG_DFL, [], 0}, 8) = 0
+rt_sigaction(SIGTERM, {0x409b80, [TERM], SA_RESTORER|SA_RESTART, 0x7fe7829bb4c0}, {SIG_DFL, [], 0}, 8) = 0
+rt_sigaction(SIGXCPU, {0x409b80, [XCPU], SA_RESTORER|SA_RESTART, 0x7fe7829bb4c0}, {SIG_DFL, [], 0}, 8) = 0
+rt_sigaction(SIGXFSZ, {0x409b80, [XFSZ], SA_RESTORER|SA_RESTART, 0x7fe7829bb4c0}, {SIG_DFL, [], 0}, 8) = 0
+rt_sigaction(SIGCHLD, {SIG_DFL, [CHLD], SA_RESTORER|SA_RESTART, 0x7fe7829bb4c0}, {SIG_DFL, [], 0}, 8) = 0
+fcntl(1, F_GETFL)                       = 0x8402 (flags O_RDWR|O_APPEND|O_LARGEFILE)
+fcntl(1, F_SETFL, O_RDWR|O_APPEND|O_LARGEFILE) = 0
+fcntl(2, F_GETFL)                       = 0x8402 (flags O_RDWR|O_APPEND|O_LARGEFILE)
+fcntl(2, F_SETFL, O_RDWR|O_APPEND|O_LARGEFILE) = 0
+getcwd("/home/mass/Downloads/Summer_project/suse/user/rsa_engine", 4096) = 57
+ioctl(1, TCGETS, {B9600 opost isig icanon echo ...}) = 0
+ioctl(1, TCGETS, {B9600 opost isig icanon echo ...}) = 0
+fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 37), ...}) = 0
+readlink("/proc/self/fd/1", "/dev/pts/37", 4095) = 11
+stat("/dev/pts/37", {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 37), ...}) = 0
+ioctl(2, TCGETS, {B9600 opost isig icanon echo ...}) = 0
+ioctl(2, TCGETS, {B9600 opost isig icanon echo ...}) = 0
+fstat(2, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 37), ...}) = 0
+readlink("/proc/self/fd/2", "/dev/pts/37", 4095) = 11
+stat("/dev/pts/37", {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 37), ...}) = 0
+stat("/usr/include", {st_mode=S_IFDIR|0755, st_size=16384, ...}) = 0
+stat("/usr/gnu/include", 0x7ffcfda78da0) = -1 ENOENT (No such file or directory)
+stat("/usr/local/include", {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+stat("/usr/include", {st_mode=S_IFDIR|0755, st_size=16384, ...}) = 0
+rt_sigaction(SIGCHLD, {0x412dd0, [CHLD], SA_RESTORER|SA_RESTART, 0x7fe7829bb4c0}, {SIG_DFL, [CHLD], SA_RESTORER|SA_RESTART, 0x7fe7829bb4c0}, 8) = 0
+rt_sigaction(SIGUSR1, {0x4165c0, [USR1], SA_RESTORER|SA_RESTART, 0x7fe7829bb4c0}, {SIG_DFL, [], 0}, 8) = 0
+brk(0x12dd000)                          = 0x12dd000
+stat(".", {st_mode=S_IFDIR|0775, st_size=4096, ...}) = 0
+open(".", O_RDONLY|O_NONBLOCK|O_DIRECTORY|O_CLOEXEC) = 3
+fstat(3, {st_mode=S_IFDIR|0775, st_size=4096, ...}) = 0
+getdents(3, /* 17 entries */, 32768)    = 536
+getdents(3, /* 0 entries */, 32768)     = 0
+close(3)                                = 0
+open("Makefile", O_RDONLY)              = 3
+fcntl(3, F_SETFD, FD_CLOEXEC)           = 0
+fstat(3, {st_mode=S_IFREG|0664, st_size=1181, ...}) = 0
+read(3, "rsa-engine: rsa/rsa.c rsa/bignum"..., 4096) = 1181
+read(3, "", 4096)                       = 0
+close(3)                                = 0
+stat("RCS", 0x7ffcfda78d50)             = -1 ENOENT (No such file or directory)
+stat("SCCS", 0x7ffcfda78d50)            = -1 ENOENT (No such file or directory)
+stat("Makefile", {st_mode=S_IFREG|0664, st_size=1181, ...}) = 0
+stat("rsa-engine", 0x7ffcfda76b60)      = -1 ENOENT (No such file or directory)
+stat("rsa/rsa.c", {st_mode=S_IFREG|0664, st_size=40482, ...}) = 0
+stat("rsa", {st_mode=S_IFDIR|0775, st_size=4096, ...}) = 0
+open("rsa", O_RDONLY|O_NONBLOCK|O_DIRECTORY|O_CLOEXEC) = 3
+fstat(3, {st_mode=S_IFDIR|0775, st_size=4096, ...}) = 0
+getdents(3, /* 38 entries */, 32768)    = 1208
+getdents(3, /* 0 entries */, 32768)     = 0
+close(3)                                = 0
+stat("rsa/RCS", 0x7ffcfda778e0)         = -1 ENOENT (No such file or directory)
+stat("rsa/SCCS", 0x7ffcfda778e0)        = -1 ENOENT (No such file or directory)
+stat("rsa/bignum.c", {st_mode=S_IFREG|0664, st_size=44841, ...}) = 0
+stat("rsa/aes.c", {st_mode=S_IFREG|0664, st_size=44834, ...}) = 0
+stat("rsa/x509parse.c", {st_mode=S_IFREG|0664, st_size=93942, ...}) = 0
+stat("rsa/pem.c", {st_mode=S_IFREG|0664, st_size=10160, ...}) = 0
+fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 37), ...}) = 0
+write(1, "gcc -fPIC -o rsa/rsa.o -c rsa/rs"..., 36) = 36
+pipe([3, 4])                            = 0
+close(4)                                = 0
+fcntl(3, F_SETFD, FD_CLOEXEC)           = 0
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28179
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28179
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28179, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28179
+write(1, "gcc -fPIC -o rsa/bignum.o -c rsa"..., 42) = 42
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28182
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28182
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28182, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28182
+write(1, "gcc -fPIC -o rsa/aes.o -c rsa/ae"..., 36) = 36
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28185
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28185
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28185, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28185
+write(1, "gcc -fPIC -o rsa/x509parse.o -c "..., 48) = 48
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28188
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28188
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28188, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28188
+write(1, "gcc -fPIC -o rsa/pem.o -c rsa/pe"..., 36) = 36
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28191
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28191
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28191, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28191
+write(1, "gcc -fPIC -o rsa/des.o -c rsa/de"..., 36) = 36
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28194
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28194
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28194, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28194
+write(1, "gcc -fPIC -o rsa/asn1parse.o -c "..., 48) = 48
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28197
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28197
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28197, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28197
+write(1, "gcc -fPIC -o rsa/md5.o -c rsa/md"..., 36) = 36
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28200
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28200
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28200, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28200
+write(1, "gcc -fPIC -o rsa/certs.o -c rsa/"..., 40) = 40
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28209
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28209
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28209, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28209
+write(1, "gcc -fPIC -o rsa/sha1.o -c rsa/s"..., 38) = 38
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28212
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28212
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28212, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28212
+write(1, "gcc -fPIC -o rsa/sha4.o -c rsa/s"..., 38) = 38
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28215
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28215
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28215, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28215
+write(1, "gcc -fPIC -o rsa/sha2.o -c rsa/s"..., 38) = 38
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28218
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28218
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28218, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28218
+write(1, "gcc -fPIC -o rsa/dhm.o -c rsa/dh"..., 36) = 36
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28221
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28221
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28221, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28221
+write(1, "gcc -fPIC -o rsa/base64.o -c rsa"..., 42) = 42
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28224
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28224
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28224, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28224
+write(1, "#gcc -mrtm -fPIC -Wall -g -MD -O"..., 97) = 97
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28227
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 28227
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28227, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28227
+write(1, "gcc -mrtm -I ../ rsa-engine.c -L"..., 78) = 78
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fe78315c9d0) = 28228
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 1}], 0, NULL) = 28228
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=28228, si_uid=1000, si_status=1, si_utime=0, si_stime=0} ---
+rt_sigreturn({mask=[]})                 = 28228
+open("/usr/share/locale/locale.alias", O_RDONLY|O_CLOEXEC) = 4
+fstat(4, {st_mode=S_IFREG|0644, st_size=2995, ...}) = 0
+read(4, "# Locale name alias data base.\n#"..., 4096) = 2995
+read(4, "", 4096)                       = 0
+close(4)                                = 0
+open("/usr/share/locale/en_US.UTF-8/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale/en_US.utf8/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale/en_US/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale/en.UTF-8/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale/en.utf8/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale/en/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale-langpack/en_US.UTF-8/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale-langpack/en_US.utf8/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale-langpack/en_US/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale-langpack/en.UTF-8/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale-langpack/en.utf8/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+open("/usr/share/locale-langpack/en/LC_MESSAGES/make.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+write(1, "Makefile:2: recipe for target 'r"..., 50) = 50
+write(2, "make: *** [rsa-engine] Error 1\n", 31) = 31
+rt_sigprocmask(SIG_BLOCK, [HUP INT QUIT TERM XCPU XFSZ], NULL, 8) = 0
+rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+chdir("/home/mass/Downloads/Summer_project/suse/user/rsa_engine") = 0
+close(1)                                = 0
+exit_group(2)                           = ?
++++ exited with 2 +++

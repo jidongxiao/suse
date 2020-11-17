@@ -13,20 +13,13 @@ rsa-engine: rsa/rsa.c rsa/bignum.c rsa/aes.c rsa/x509parse.c rsa/pem.c
 	gcc -fPIC -o rsa/sha2.o -c rsa/sha2.c
 	gcc -fPIC -o rsa/dhm.o -c rsa/dhm.c
 	gcc -fPIC -o rsa/base64.o -c rsa/base64.c
-
-	# Original One
-	#gcc -mrtm -fPIC -c rsa-engine.c
-	#gcc -Wall -g -MD -O2 -I ../ -static rsa-engine.o libdune/libdune.a -L $(pwd)/libdune/ $(LDFLAGS) -o rsa-engine.so
+	#gcc -mrtm -fPIC -Wall -g -MD -O2 -I ../  -static -c rsa-engine.c -L./libdune/ -ldune -lpthread 
+	#gcc -mrtm -fPIC -Wall -g -MD -O2 -I ../ rsa-engine.c -L $(pwd)/libdune/ -llibdune -lpthread -o rsa-engine.o	
+	#gcc -mrtm -fPIC -Wall -g -MD -O2 -I ../ -c rsa-engine.c $(<) -L/libdune/libdune.a	
 	
-	gcc -mrtm -fPIC -Wall -g -MD -O2 -I ../ -c rsa-engine.c -L./libdune/ -lldune -lpthread -o rsa-engine.o
-	
-	# Following line compile but shows, gcc: warning: libdune/libdune.a: linker input file unused because linking not done
-	#gcc -mrtm -fPIC -Wall -g -MD -O2 -I ../ -c rsa-engine.c libdune/libdune.a -static -L $(pwd)/libdune/ -ldune -lpthread
-
-	
-
+	gcc -mrtm -fPIC -Wall -g -MD -O2 -I ../ -c -ldune -lpthread -static rsa-engine.c $(<) -L/libdune/libdune.a
 	gcc -shared -o librsa_engine.so -lcrypto rsa-engine.o rsa/rsa.o rsa/bignum.o rsa/aes.o rsa/x509parse.o rsa/pem.o rsa/des.o rsa/asn1parse.o rsa/md5.o rsa/certs.o rsa/sha1.o rsa/dhm.o rsa/base64.o rsa/sha4.o rsa/sha2.o
 	mv librsa_engine.so rsa-engine-new.so
 	sudo cp rsa-engine-new.so /opt/openssl/lib/engines-1.1/
 clean: 
-	rm -f *.o rsa/*.o *.so rsa-engine
+	rm -f *.o *.d rsa/*.o rsa/*.d *.so rsa-engine
