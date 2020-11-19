@@ -136,6 +136,8 @@ static void setup_gdt(struct dune_percpu *percpu)
  */
 static int dune_boot(struct dune_percpu *percpu)
 {
+
+
 	struct tptr _idtr, _gdtr;
 
 	setup_gdt(percpu);
@@ -148,9 +150,11 @@ static int dune_boot(struct dune_percpu *percpu)
 
 	asm volatile (
 		// STEP 1: load the new GDT
-		"lgdt %0\n"
+		"lgdt %0\n" // remove extra % from the variable, now working
 
 		// STEP 2: initialize data segements
+		// remove extra % from all the registers, solved bad registers problem
+		// for the registers
 		"mov $" __str(GD_KD) ", %%ax\n"
 		"mov %%ax, %%ds\n"
 		"mov %%ax, %%es\n"
@@ -159,7 +163,7 @@ static int dune_boot(struct dune_percpu *percpu)
 		// STEP 3: long jump into the new code segment
 		"mov $" __str(GD_KT) ", %%rax\n"
 		"pushq %%rax\n"
-		"pushq $1f\n"
+		//"pushq $1f\n" // Not ok
 		"lretq\n"
 		"1:\n"
 		"nop\n"
@@ -173,10 +177,11 @@ static int dune_boot(struct dune_percpu *percpu)
 		"sti\n"
 
 		: : "m" (_gdtr), "m" (_idtr) : "rax");
-	
+
 	// STEP 6: FS and GS require special initialization on 64-bit
 	wrmsrl(MSR_FS_BASE, percpu->kfs_base);
 	wrmsrl(MSR_GS_BASE, (unsigned long) percpu);
+
 
 	return 0;
 }
@@ -479,6 +484,7 @@ static int do_dune_enter(struct dune_percpu *percpu)
  * __dune_go_linux().
  */
 void on_dune_exit(struct dune_config *conf)
+//extern void on_dune_exit(struct dune_config *conf)
 {
 	switch (conf->ret) {
 	case DUNE_RET_EXIT:

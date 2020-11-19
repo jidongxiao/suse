@@ -361,7 +361,8 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
         // adding extra 10 char for 1024-bit key. For 2048-bit key this padding will be different
         //char ch[10]={'0','0','0','0','0','0','0','0','0','0'};
         char ch[k];
-        for (int i=0;i<k;i++){
+        int i;
+        for (i=0;i<k;i++){
             ch[i]='0';
         }
         strncat(buffer,&ch,k);
@@ -405,7 +406,7 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     // RTM starts
     int check=-1;
     unsigned status;
-    asm volatile("cli": : :"memory");
+    //asm volatile("cli": : :"memory");
     while(check!=1){
         if ((status = _xbegin()) == _XBEGIN_STARTED) {
             if(decryptFunction(from, private_encrypt))
@@ -416,13 +417,11 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
             printf("status is %ld\n", status);
             //break;
         }
-        asm volatile("sti": : :"memory");
+       // asm volatile("sti": : :"memory");
         printf("RTM : Check is %d\n", check);
         //asm volatile("sti": : :"memory");
 
     }
-
-
 
 
     //result =decryptFunction(from, private_encrypt);

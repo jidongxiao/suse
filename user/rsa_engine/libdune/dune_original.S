@@ -7,21 +7,16 @@
 
 #define USE_RDWRGSFS 0
 
-
 #define MSR_FS_BASE	0xc0000100
-#define GD_KT	0x10
-#define GD_KD	0x18
-#define GD_UD	0x28 | 0x03
-#define GD_UT	0x30 | 0x03
-
-
+#define GD_KT		0x10
+#define GD_KD		0x18
+#define GD_UD		0x28 | 0x03
+#define GD_UT		0x30 | 0x03
 
 /*
  * Trap Frame Format
  * NOTE: this reflects the layout of struct dune_tf
  */
-
-
 
 /* arguments */
 #define RDI	(0)
@@ -30,7 +25,6 @@
 #define RCX	(24)
 #define R8	(32)
 #define R9	(40)
-
 
 /* other registers */
 #define R10	(48)
@@ -44,11 +38,8 @@
 
 #define REG_END	(112)
 
-
-
 /* syscall num / return code */
 #define RAX	(112)
-
 
 /* exception frame */
 #define ERR	(120)
@@ -58,29 +49,25 @@
 #define RSP	(152)
 #define SS	(160)
 
-
 #define EF_START (128)
 #define TF_END	(168)
 #define TF_ALIGN (176)
-
-
 
 /*
  * Supervisor Private Area Format
  */
 
-#define TMP	(8)
+#define TMP		(8)
 #define KFS_BASE	(16)
 #define UFS_BASE	(24)
 #define IN_USERMODE	(32)
 #define TRAP_STACK	(44)
 
-.text //ok
+.text
 
 /*
  * macro to save destructable register state
  */
-
 	.macro SAVE_REGS save_full=1, include_rax=1
 	movq	%rdi, RDI(%rsp)
 	movq	%rsi, RSI(%rsp)
@@ -99,15 +86,12 @@
 	.endif
 	.endm
 
-
-
 /*
  * macro to save the rest of register state
  *
  * useful for operations that violate AMD64 calling conventions
  * by destroying callee restored state
  */
-
 	.macro SAVE_REST
 	movq	%rbx, RBX(%rsp)
 	movq	%rbp, RBP(%rsp)
@@ -116,8 +100,6 @@
 	movq	%r14, R14(%rsp)
 	movq	%r15, R15(%rsp)
 	.endm
-
-
 
 /*
  * macro to restore destructable register state
@@ -140,15 +122,12 @@
 	movq	RDI(%rsp), %rdi
 	.endm
 
-
-
 /*
  * macro to restore the rest of register state
  *
  * useful for operations that violate AMD64 calling conventions
  * by destroying callee restored state
  */
-
 	.macro RESTORE_REST
 	movq	R15(%rsp), %r15
 	movq	R14(%rsp), %r14
@@ -157,8 +136,6 @@
 	movq	RBP(%rsp), %rbp
 	movq	RBX(%rsp), %rbx
 	.endm
-
-
 
 /*
  * macro to switch to G0 fs.base
@@ -171,7 +148,6 @@
 	movq	%gs:UFS_BASE, %rdx
 	cmp	%rax, %rdx
 	je	1f
-
 #if USE_RDWRGSFS
 	wrfsbase %rax
 #else
@@ -182,7 +158,6 @@
 #endif /* USE_RDWRGSFS */
 1:
 	.endm
-
 
 /*
  * macro to switch to G3 fs.base
@@ -206,8 +181,7 @@
 1:
 	.endm
 
-
-.globl __dune_enter //ok
+.globl __dune_enter
 __dune_enter:
 	pushfq
 	subq	$REG_END, %rsp
@@ -225,39 +199,30 @@ __dune_enter:
 	movq	%rdi, %r12
 	movq	%rdx, %r13
 
-// Following function was empty, adding one line at a time to check
-// I added the following two line inorder to fix the C function
-// calling. But did not work
-//.globl __dune_retry
-//.extern _on_dune_exit
 __dune_retry:
-    /* Dune mode was terminated, call on_dune_exit handler function */
-    movq	%r13, %rdi //ok
-    /* Update RSP to point to the top of the stack as seen from inside Dune
-    * mode. */
-    movq	DUNE_CFG_RSP(%rdi), %rsp //ok
-    /* Go past the red zone mandated by the System V x86-64 ABI. */
-    subq	$128, %rsp //ok
-    //call	on_dune_exit // Not OK
-    int3 /* sentinel: on_dune_exit should not return */
-
-// Follwoing function was removed. I added it again, not showing
-// any problem
+	/* Dune mode was terminated, call on_dune_exit handler function */
+	movq	%r13, %rdi
+	/* Update RSP to point to the top of the stack as seen from inside Dune
+	 * mode. */
+	movq	DUNE_CFG_RSP(%rdi), %rsp
+	/* Go past the red zone mandated by the System V x86-64 ABI. */
+	subq	$128, %rsp
+	call	on_dune_exit
+	int3 /* sentinel: on_dune_exit should not return */
 __dune_reenter:
-    movq	%r12, %rdi
-    movq	%r13, %rdx
-    movq	$IOCTL_DUNE_ENTER, %rsi
-    movq	$16, %rax /* __NR_ioctl */
-    syscall
-    cmpq	$0, %rax
-    jz	__dune_retry
-    movq	%rax, DUNE_CFG_STATUS(%r13)
-    movq	$DUNE_RET_NOENTER, DUNE_CFG_RET(%r13)
-    jmp	__dune_retry
-
+	movq	%r12, %rdi
+	movq	%r13, %rdx
+	movq	$IOCTL_DUNE_ENTER, %rsi
+	movq	$16, %rax /* __NR_ioctl */
+	syscall
+	cmpq	$0, %rax
+	jz	__dune_retry
+	movq	%rax, DUNE_CFG_STATUS(%r13)
+	movq	$DUNE_RET_NOENTER, DUNE_CFG_RET(%r13)
+	jmp	__dune_retry
 
 /* __dune_ret is the location of the first instruction executed in Dune mode */
-.globl	__dune_ret // ok
+.globl	__dune_ret
 __dune_ret:
 	xorq %rax, %rax /* return 0 from __dune_enter */
 
@@ -268,8 +233,7 @@ __dune_ret_fail:
 	popfq
 	retq
 
-
-.globl __dune_go_linux // ok
+.globl __dune_go_linux
 __dune_go_linux:
 	movq DUNE_CFG_RCX(%rdi), %rcx
 	movq DUNE_CFG_RBX(%rdi), %rbx
@@ -300,13 +264,11 @@ __dune_go_linux:
 	popf
 	iretq
 
-
-.globl __dune_go_dune // ok
+.globl __dune_go_dune
 __dune_go_dune:
 	movq	%rdi, %r12
 	movq	%rsi, %r13
-    jmp	__dune_reenter //ok
-
+	jmp	__dune_reenter
 
 /*
  * System Call ABI
@@ -326,7 +288,7 @@ __dune_go_dune:
  *
  * XXX: don't do relative jumps - watch out code is memcpy
  */
-.globl __dune_syscall //ok
+.globl __dune_syscall
 __dune_syscall:
 	/* handle system calls from G0 */
 	testq $1, %gs:IN_USERMODE
@@ -356,7 +318,7 @@ __dune_syscall:
 	/* then finally re-enable interrupts and jump to the handler */
 	sti
 	movq	%rsp, %rdi /* argument 0 */
-	//lea	dune_syscall_handler, %rax // not ok
+	lea	dune_syscall_handler, %rax
 	call	*%rax
 
 	/* next restore the CPL3 FS base address */
@@ -372,13 +334,11 @@ __dune_syscall:
 	movq	RSP(%rsp), %rsp
 	sysretq
 
-
-.globl __dune_syscall_end //ok
+.globl __dune_syscall_end
 __dune_syscall_end:
 	nop
 
-
-.globl dune_pop_trap_frame //ok
+.globl dune_pop_trap_frame
 dune_pop_trap_frame:
 	movq	%rdi, %rsp /* might actually not be a stack!!! */
 
@@ -390,7 +350,7 @@ dune_pop_trap_frame:
 	addq	$EF_START, %rsp
 	iretq
 
-.globl dune_jump_to_user //ok
+.globl dune_jump_to_user
 dune_jump_to_user:
 	subq	$TF_ALIGN, %rsp
 
@@ -411,79 +371,71 @@ dune_jump_to_user:
 	movq	$GD_UD, SS(%rdi)
 	jmp	dune_pop_trap_frame
 
-
-.globl dune_ret_from_user //ok
+.globl dune_ret_from_user
 dune_ret_from_user:
-    /* restore the G0 stack */
-    movq	%rdi, %rsi
-    movq	%gs:TRAP_STACK, %rdi
+	/* restore the G0 stack */
+	movq	%rdi, %rsi
+	movq	%gs:TRAP_STACK, %rdi
 
-    /* return code */
-    movq	%rsi, RAX(%rdi)
+	/* return code */
+	movq	%rsi, RAX(%rdi)
 
-    /* fill in remaining exception frame data */
-    //lea	dune_ret_from_user_finish, %rax // not ok
-    movq	%rax, RIP(%rdi)
-    movq	$GD_KT, CS(%rdi)
-    movq	$GD_KD, SS(%rdi)
-    movq	%rdi, RSP(%rdi)
+	/* fill in remaining exception frame data */
+	lea	dune_ret_from_user_finish, %rax
+	movq	%rax, RIP(%rdi)
+	movq	$GD_KT, CS(%rdi)
+	movq	$GD_KD, SS(%rdi)
+	movq	%rdi, RSP(%rdi)
 
-    /* return to the caller */
-    jmp	dune_pop_trap_frame
+	/* return to the caller */
+	jmp	dune_pop_trap_frame
 
-// ok
 dune_ret_from_user_finish:
-    addq	$TF_ALIGN, %rsp
-    ret
+	addq	$TF_ALIGN, %rsp
+	ret
 
-
-// Follwoing function is ok
-.globl __dune_intr //ok
+.globl __dune_intr
 .align 16
 __dune_intr:
-    i = 0
-    .rept 256
-    .align 16
-    .if i <> 8 && (i <= 9 || i >= 15) && i <> 17
-        pushq	%rax /* placeholder for no error code */
-    .endif
-    pushq	%rax /* save %rax */
-    mov $i, %rax
-    jmp __dune_intr_with_num
-    i = i + 1
-    .endr
+	i = 0
+	.rept 256
+	.align 16
+	.if i <> 8 && (i <= 9 || i >= 15) && i <> 17
+		pushq	%rax /* placeholder for no error code */
+	.endif
+	pushq	%rax /* save %rax */
+	mov $i, %rax
+	jmp __dune_intr_with_num
+	i = i + 1
+	.endr
 
-
-
-//ok
 __dune_intr_with_num:
-    /* save all registers */
-    subq	$REG_END, %rsp
-    SAVE_REGS 1, 0 /* %rax already is pushed */
-    SAVE_REST
-    movq	%rax, %rdi
+	/* save all registers */
+	subq	$REG_END, %rsp
+	SAVE_REGS 1, 0 /* %rax already is pushed */
+	SAVE_REST
+	movq	%rax, %rdi
 
-    /* then restore the CPL0 FS base address */
-    testq	$3, CS(%rsp)
-    jz	__dune_intr_handler
-    SET_G0_FS_BASE
+	/* then restore the CPL0 FS base address */
+	testq	$3, CS(%rsp)
+	jz	__dune_intr_handler
+	SET_G0_FS_BASE
 
 __dune_intr_handler:
-    /* setup arguments and call the handler */
-    movq	%rsp, %rsi
-    //call	dune_trap_handler // Not ok
+	/* setup arguments and call the handler */
+	movq	%rsp, %rsi
+	call	dune_trap_handler
 
-    /* next restore the CPL3 FS base address */
-    testq	$3, CS(%rsp)
-    jz	__dune_intr_done
-    SET_G3_FS_BASE
+	/* next restore the CPL3 FS base address */
+	testq	$3, CS(%rsp)
+	jz	__dune_intr_done
+	SET_G3_FS_BASE
 
-//ok
 __dune_intr_done:
-    /* load all registers */
-    RESTORE_REST
-    RESTORE_REGS
+	/* load all registers */
+	RESTORE_REST
+	RESTORE_REGS
 
-    /* jump to the frame */
-    addq	$EF_START, %rsp
-    iretq
+	/* jump to the frame */
+	addq	$EF_START, %rsp
+	iretq
