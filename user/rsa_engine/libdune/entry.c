@@ -153,8 +153,6 @@ static int dune_boot(struct dune_percpu *percpu)
 		"lgdt %0\n" // remove extra % from the variable, now working
 
 		// STEP 2: initialize data segements
-		// remove extra % from all the registers, solved bad registers problem
-		// for the registers
 		"mov $" __str(GD_KD) ", %%ax\n"
 		"mov %%ax, %%ds\n"
 		"mov %%ax, %%es\n"
@@ -163,7 +161,9 @@ static int dune_boot(struct dune_percpu *percpu)
 		// STEP 3: long jump into the new code segment
 		"mov $" __str(GD_KT) ", %%rax\n"
 		"pushq %%rax\n"
-		//"pushq $1f\n" // Not ok
+		//"pushq $1f\n" // Not ok, following two lines are the replacement of this line?, $1f == rip?
+        "lea 1f(%%rip), %%rax\n" // hack?
+        "pushq %%rax\n" // hack?
 		"lretq\n"
 		"1:\n"
 		"nop\n"

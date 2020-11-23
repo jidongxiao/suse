@@ -238,7 +238,12 @@ __dune_retry:
     movq	DUNE_CFG_RSP(%rdi), %rsp //ok
     /* Go past the red zone mandated by the System V x86-64 ABI. */
     subq	$128, %rsp //ok
-    //call	on_dune_exit // Not OK
+    //call	$on_dune_exit // Not OK
+    movabsq $on_dune_exit, %rax  // ok?, it is compiling
+    call	*%rax
+
+    //lea on_dune_exit, %rax
+    //call *%rax
     int3 /* sentinel: on_dune_exit should not return */
 
 // Follwoing function was removed. I added it again, not showing
@@ -327,6 +332,7 @@ __dune_go_dune:
  * XXX: don't do relative jumps - watch out code is memcpy
  */
 .globl __dune_syscall //ok
+//.extern dune_syscall_handler
 __dune_syscall:
 	/* handle system calls from G0 */
 	testq $1, %gs:IN_USERMODE
@@ -356,7 +362,10 @@ __dune_syscall:
 	/* then finally re-enable interrupts and jump to the handler */
 	sti
 	movq	%rsp, %rdi /* argument 0 */
-	//lea	dune_syscall_handler, %rax // not ok
+
+	//lea	dune_syscall_handler, %rax // Not ok
+	//lea	dune_syscall_handler(%rip), %rax
+	movabsq $dune_syscall_handler, %rax // ok? compiling
 	call	*%rax
 
 	/* next restore the CPL3 FS base address */
@@ -423,6 +432,7 @@ dune_ret_from_user:
 
     /* fill in remaining exception frame data */
     //lea	dune_ret_from_user_finish, %rax // not ok
+    movabsq $dune_ret_from_user_finish, %rax // ok? compiling
     movq	%rax, RIP(%rdi)
     movq	$GD_KT, CS(%rdi)
     movq	$GD_KD, SS(%rdi)
@@ -432,6 +442,7 @@ dune_ret_from_user:
     jmp	dune_pop_trap_frame
 
 // ok
+//.globl dune_ret_from_user_finish
 dune_ret_from_user_finish:
     addq	$TF_ALIGN, %rsp
     ret
@@ -472,6 +483,8 @@ __dune_intr_handler:
     /* setup arguments and call the handler */
     movq	%rsp, %rsi
     //call	dune_trap_handler // Not ok
+    movabsq $dune_trap_handler, %rax // ok? added this & the following line
+    call *%rax
 
     /* next restore the CPL3 FS base address */
     testq	$3, CS(%rsp)
