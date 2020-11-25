@@ -1,0 +1,8 @@
+CC=gcc
+CFLAGS= -mrtm
+
+rtmCheck: rtmCheck.o
+	$(CC) $(CFLAGS) -o rtmCheck rtmCheck.o
+
+clean: 
+	rm -f *.o rtmCheck
