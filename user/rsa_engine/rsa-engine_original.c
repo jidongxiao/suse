@@ -1,4 +1,4 @@
-//#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
 #include <sched.h>
 #include <openssl/opensslconf.h>
 #include <stdio.h>
@@ -42,16 +42,15 @@ unsigned char mkt[16] = { \
 
 #define errExit(msg)    do { perror(msg); exit(EXIT_FAILURE); \
                                } while (0)
-//#define buff_size 3
+#define buff_size 3
 
 # define KEY_BUFFER_SIZE 992 // this is for 1024-bit key. For different key lenght it will be different
 #define KEY_LEN 128
 
 
-//void clear_buffer (char *buffer){
-//    memset(buffer,0,buff_size);
-//}
-
+void clear_buffer (char *buffer){
+    memset(buffer,0,buff_size);
+}
 
 int myrand( void *rng_state, unsigned char *output, size_t len )
 {
@@ -74,7 +73,7 @@ int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
     aes_context aes;
     rsa_context rsa_polar;
 
-    //rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
+    rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
 
 
 //    int len_cipher=strlen(from);
@@ -88,74 +87,52 @@ int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
         aes_crypt_ecb(&aes,AES_DECRYPT, private_encrypt + AES_BLOCK_SIZE*j,private_decrypt+AES_BLOCK_SIZE*j);
     }
 
-    // For 1024-bit key, total buffer size is 986 -fixed.
-    // After aes-decryption, total decryption lenght will be different
-    // But need to make private_decrypt[] size same as 986
-    // So, I will choose N, dynamically.
-    // N = strlen(private_decrypt) - 986
-
     // for 1024 bit keys, removing the extra 10 padding
-    //int N=11;
-    //int N=15;
+    int N=11;
     int len=strlen(private_decrypt);
-    int N= len-986; // 986 is the buffer size for 1024-bit key
-    //printf ("N is : %d\n", N);
-
-
     private_decrypt[len-N]='\0';
-    //printf("len is %d\n", len);
 
-    //printf("Decrypted private key is --> \n %s \n", private_decrypt);
-
-
-    // Printing here shows extra something after the key
+    printf("Decrypted private key is --> \n %s \n", private_decrypt);
 
 
     //reading private.pem and perform decryption
     rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
-
-
     int len_cipher=strlen(from);
-
-    //unsigned char decrypt_plaintext[len_cipher];
-    /*
-     *
-     * Need to fix this
-     *
-     * */
-    unsigned char decrypt_plaintext[1000];
+    unsigned char decrypt_plaintext[len_cipher];
 
 
     // read decrypted key from buffer into rsa_context
     if (x509parse_key(&rsa_polar,private_decrypt,strlen(private_decrypt), "1234",4)!=0){
-        //printf("Error code\n");
-        exit(0);
+        printf("Error code\n");
     }else{
         //printf("Reading decrypted private key from buffer into rsa_context is success\n");
     }
 
-
-
     if( rsa_check_pubkey(  &rsa_polar ) != 0 ||rsa_check_privkey( &rsa_polar ) != 0 ) {
-        //printf( "decryption : Public/Private key error! \n" );
+        printf( "decryption : Public/Private key error! \n" );
         exit(0);
     }else{
         //printf("decryption :Key reading success\n");
     }
 
     if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 ) {
-        //printf( "Decryption failed! \n" );
-        //printf("Error code,  %d\n",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
+        //if( rsa_private(&rsa_polar, &myrand, NULL, from, decrypt_plaintext)!=0){
+        printf( "Decryption failed! \n" );
+        printf("Error code,  %d",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
         exit(0);
     }else {
-        //printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
+        printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
     }
 
-    return 1;
+
+
+// RTM ENDS: here
+
     //exit(0);
 
-}
+    return 1;
 
+}
 
 
 // END: all the functions for RSA operation
@@ -420,52 +397,38 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     volatile int ret;
     printf("hello: not running dune yet\n");
 
-    ret = dune_init_and_enter();
-    if (ret) {
-        printf("failed to initialize dune\n");
-        return ret;
-    }
-    printf("hello: now printing from dune mode\n");
-
-    // To check if dune is working
-    //exit(0);
-
-/*
- * Disabling RTM
- * */
-
-
-/*
+//    ret = dune_init_and_enter();
+//    if (ret) {
+//        printf("failed to initialize dune\n");
+//        return ret;
+//    }
+//    printf("hello: now printing from dune mode\n");
     // RTM starts
     int check=-1;
     unsigned status;
     //asm volatile("cli": : :"memory");
-    while(check!=1){
-        if ((status = _xbegin()) == _XBEGIN_STARTED) {
-            //if(decryptFunction(from, private_encrypt)){
-            if(test_otherfunction(5,6)){
-                check=1;
-                _xend();
-            }
-        }else{
-            printf("RTM: Transaction failed\n");
-            printf("status is %ld\n", status);
-            //break;
-        }
-        //asm volatile("sti": : :"memory");
-        printf("RTM : Check is %d\n", check);
-        //asm volatile("sti": : :"memory");
+//    while(check!=1){
+//        if ((status = _xbegin()) == _XBEGIN_STARTED) {
+//            if(decryptFunction(from, private_encrypt))
+//                check=1;
+//            _xend();
+//        }else{
+//            printf("RTM: Transaction failed\n");
+//            printf("status is %ld\n", status);
+//            //break;
+//        }
+//       // asm volatile("sti": : :"memory");
+//        printf("RTM : Check is %d\n", check);
+//        //asm volatile("sti": : :"memory");
+//
+//    }
 
-    }
 
-*/
     result =decryptFunction(from, private_encrypt);
 
 
     // RTM ends
     printf("after operation, result is %d\n",result);
-
-    exit(0);
 
 }
 
