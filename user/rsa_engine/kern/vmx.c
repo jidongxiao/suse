@@ -469,6 +469,9 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 	}
 	rdmsrl(MSR_IA32_VMX_PROCBASED_CTLS2, vmx_capability.secondary);
 
+        /* Exposing DR to guest*/
+        _cpu_based_exec_control &= ~CPU_BASED_MOV_DR_EXITING;
+
 	min = 0;
 #ifdef CONFIG_X86_64
 	min |= VM_EXIT_HOST_ADDR_SPACE_SIZE;
