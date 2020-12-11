@@ -53,37 +53,6 @@ unsigned char mkt[16] = { \
 //}
 
 
-// reading debug registers
-static unsigned long long get_dr0(void){
-    unsigned long long value;
-    asm volatile("mov %%dr0,%0" : "=r" (value));
-    return value;
-}
-
-static unsigned long long get_dr1(void){
-    unsigned long long value;
-
-    asm volatile("mov %%dr1,%0" : "=r" (value));
-    return value;
-}
-
-static unsigned long long get_dr2(void){
-    unsigned long long value;
-
-    asm volatile("mov %%dr2,%0" : "=r" (value));
-    return value;
-}
-
-static unsigned long long get_dr3(void){
-    unsigned long long value;
-
-    asm volatile("mov %%dr3,%0" : "=r" (value));
-    return value;
-}
-
-
-
-
 int myrand( void *rng_state, unsigned char *output, size_t len )
 {
     size_t i;
@@ -460,17 +429,6 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
     // To check if dune is working
     //exit(0);
-
-    // print dr registers
-    unsigned long long dr0;
-    unsigned long long dr1;
-    unsigned long long dr2;
-    unsigned long long dr3;
-    printf("dr0 is %lx\n", dr0);
-    printf("dr2 is %lx\n", dr1);
-    printf("dr2 is %lx\n", dr3);
-    printf("dr3 is %lx\n", dr3);
-
 
 /*
  * Disabling RTM

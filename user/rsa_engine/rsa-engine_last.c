@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <stdlib.h>
 
+
 // dune lib
 #include "libdune/dune.h"
 #include "libdune/cpu-x86.h"
@@ -52,35 +53,13 @@ unsigned char mkt[16] = { \
 //    memset(buffer,0,buff_size);
 //}
 
-
 // reading debug registers
 static unsigned long long get_dr0(void){
     unsigned long long value;
+
     asm volatile("mov %%dr0,%0" : "=r" (value));
     return value;
 }
-
-static unsigned long long get_dr1(void){
-    unsigned long long value;
-
-    asm volatile("mov %%dr1,%0" : "=r" (value));
-    return value;
-}
-
-static unsigned long long get_dr2(void){
-    unsigned long long value;
-
-    asm volatile("mov %%dr2,%0" : "=r" (value));
-    return value;
-}
-
-static unsigned long long get_dr3(void){
-    unsigned long long value;
-
-    asm volatile("mov %%dr3,%0" : "=r" (value));
-    return value;
-}
-
 
 
 
@@ -96,6 +75,7 @@ int myrand( void *rng_state, unsigned char *output, size_t len )
 
     return( 0 );
 }
+
 
 int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
 
@@ -461,21 +441,49 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     // To check if dune is working
     //exit(0);
 
-    // print dr registers
-    unsigned long long dr0;
-    unsigned long long dr1;
-    unsigned long long dr2;
-    unsigned long long dr3;
-    printf("dr0 is %lx\n", dr0);
-    printf("dr2 is %lx\n", dr1);
-    printf("dr2 is %lx\n", dr3);
-    printf("dr3 is %lx\n", dr3);
+    // reading debug registers, do not work. Because debug register is not exposed
+    //unsigned long long dr0;
+    //dr0=get_dr0();
+    //printf("dr0 is:%llx\n", dr0);
+
+    // CPU number
+    int sched_getcpu(void);
+    int cpu;
+    cpu= sched_getcpu();
+    printf("Current CPU is %d\n", cpu);
+
+    // printing rip register
+    uint64_t rip;
+    asm volatile("1: lea 1b(%%rip), %0;": "=a"(rip));
+    printf("%" PRIu64 "\n", rip);
+
+
+    u64 cr0, cr2, cr3;
+    __asm__ __volatile__ (
+    "mov %%cr0, %%rax\n\t"
+    "mov %%eax, %0\n\t"
+    "mov %%cr2, %%rax\n\t"
+    "mov %%eax, %1\n\t"
+    "mov %%cr3, %%rax\n\t"
+    "mov %%eax, %2\n\t"
+    : "=m" (cr0), "=m" (cr2), "=m" (cr3)
+    : /* no input */
+    : "%rax"
+    );
+
+
+    printf("cr0 = 0x%8.8X\n", cr0);
+    printf("cr2 = 0x%8.8X\n", cr2);
+    printf("cr3 = 0x%8.8X\n", cr3);
+
+
+    exit(0);
+
 
 
 /*
  * Disabling RTM
  * */
-
 
 /*
     // RTM starts

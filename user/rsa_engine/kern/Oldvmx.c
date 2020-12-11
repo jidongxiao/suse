@@ -66,6 +66,13 @@
 
 static atomic_t vmx_enable_failed;
 
+/*
+ * vpid = Virtual Processor ID?
+ * Declearing bitmap. vmx_vpid_bitmap is the name and VMX_NR_VPIDS is number of bits
+ * #define VMX_NR_VPIDS	  (1 << 16), is it fixed? dose it mean total 2^16 virtual processor
+ * possible?
+ *
+ */
 static DECLARE_BITMAP(vmx_vpid_bitmap, VMX_NR_VPIDS);
 static DEFINE_SPINLOCK(vmx_vpid_lock);
 
@@ -88,17 +95,26 @@ typedef void (*sys_call_ptr_t)(void);
 #endif
 static sys_call_ptr_t dune_syscall_tbl[NUM_SYSCALLS] __cacheline_aligned;
 
+
 static DEFINE_PER_CPU(struct vmcs *, vmxarea);
 static DEFINE_PER_CPU(struct desc_ptr, host_gdt);
 static DEFINE_PER_CPU(int, vmx_enabled);
+
+/*Why this is redundent? Same is also decleared in vmx.h*/
 DEFINE_PER_CPU(struct vmx_vcpu *, local_vcpu);
 
 static LIST_HEAD(vcpus);
 
 static struct vmcs_config {
 	int size;
-	int order;
+	int order; // what is it for?
+
+	/**
+	 * what is it for? During vmxon this is the only field that should be modified.
+	 * This ID field should contain the value in bits 0-31 of MSR IA32_VMX_BASIC
+	 * */
 	u32 revision_id;
+
 	u32 pin_based_exec_ctrl;
 	u32 cpu_based_exec_ctrl;
 	u32 cpu_based_2nd_exec_ctrl;
@@ -162,6 +178,9 @@ static inline bool cpu_has_vmx_ept_ad_bits(void)
 	return vmx_capability.ept & VMX_EPT_AD_BIT;
 }
 
+/*setting 31st bit of primary-processor base execution control to 1. So,
+ * secondary Processor-Based VM-Execution Controls is enabled
+ * */
 static inline bool cpu_has_apic_register_virt(void)
 {
 	return (vmx_capability.secondary >> 32) & SECONDARY_EXEC_APIC_REGISTER_VIRT;
@@ -172,6 +191,9 @@ static inline bool cpu_has_posted_interrupts(void)
 	return (vmx_capability.pin_based >> 32) & PIN_BASED_POSTED_INTR;
 }
 
+/* what does the following function actually doing?
+ * Invalid ept ? but why and when? flush the tlb entry with vpid tag upon vm_exit?
+ * */
 static inline void __invept(int ext, u64 eptp, gpa_t gpa)
 {
 	struct {
@@ -349,6 +371,8 @@ static __init int adjust_vmx_controls(u32 ctl_min, u32 ctl_opt,
 	ctl |= vmx_msr_low;  /* bit == 1 in low word  ==> must be one  */
 
 	/* Ensure minimum (required) set of control bits are supported. */
+	/**"~" is Binary One's Complement (bit flip) Operator is unary and has the
+	 * effect of 'flipping' bits.*/
 	if (ctl_min & ~ctl)
 		return -EIO;
 
@@ -364,6 +388,10 @@ static __init bool allow_1_setting(u32 msr, u32 ctl)
 	return vmx_msr_high & ctl;
 }
 
+/*
+ * Need help on this function
+ * */
+
 static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 {
 	u32 vmx_msr_low, vmx_msr_high;
@@ -374,8 +402,11 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 	u32 _vmexit_control = 0;
 	u32 _vmentry_control = 0;
 
+	// what is the following two veriables used for?
 	min = PIN_BASED_EXT_INTR_MASK | PIN_BASED_NMI_EXITING;
 	opt = PIN_BASED_VIRTUAL_NMIS | PIN_BASED_POSTED_INTR;
+
+	/*What am I adjusting?*/
 	if (adjust_vmx_controls(min, opt, MSR_IA32_VMX_PINBASED_CTLS,
 				&_pin_based_exec_control) < 0)
 		return -EIO;
@@ -438,7 +469,7 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 	}
 	rdmsrl(MSR_IA32_VMX_PROCBASED_CTLS2, vmx_capability.secondary);
 
-	/* Exposing DR to guest*/
+        /* Exposing DR to guest*/
         _cpu_based_exec_control &= ~CPU_BASED_MOV_DR_EXITING;
 
 	min = 0;
@@ -495,10 +526,18 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 
 static struct vmcs *__vmx_alloc_vmcs(int cpu)
 {
+    // find the system/node ID where current cpu is residing?
 	int node = cpu_to_node(cpu);
+
 	struct page *pages;
 	struct vmcs *vmcs;
 
+	/*
+	 *  The gfp_mask is used to tell the page allocator which pages can be allocated, whether
+	 *  the allocator can wait for more memory to be freed, etc.
+	 *  What is the order in vmcs_config?
+	 *  What is the revision_id in vmcs_config?
+	 *  */
 	pages = alloc_pages_exact_node(node, GFP_KERNEL, vmcs_config.order);
 	if (!pages)
 		return NULL;
@@ -542,7 +581,10 @@ static void vmx_setup_constant_host_state(struct vmx_vcpu *vcpu)
 
 	vmcs_writel(HOST_CR0, read_cr0() & ~X86_CR0_TS);  /* 22.2.3 */
 	vmcs_writel(HOST_CR4, __read_cr4());  /* 22.2.3, 22.2.5 */
-	vmcs_writel(HOST_CR3, read_cr3());  /* 22.2.3 */
+
+	//original
+	//vmcs_writel(HOST_CR3, read_cr3());  /* 22.2.3 */
+    vmcs_writel(HOST_CR3, __read_cr3());
 
 	vmcs_write16(HOST_CS_SELECTOR, __KERNEL_CS);  /* 22.2.4 */
 	vmcs_write16(HOST_DS_SELECTOR, __KERNEL_DS);  /* 22.2.4 */
@@ -613,7 +655,8 @@ static unsigned long segment_base(u16 selector)
 	v = get_desc_base(d);
 #ifdef CONFIG_X86_64
        if (d->s == 0 && (d->type == 2 || d->type == 9 || d->type == 11))
-               v |= ((unsigned long)((struct ldttss_desc64 *)d)->base3) << 32;
+               //v |= ((unsigned long)((struct ldttss_desc64 *)d)->base3) << 32;
+                v |= ((unsigned long)(struct ldttss_desc64 *)d->base0) << 32;
 #endif
 	return v;
 }
@@ -667,8 +710,19 @@ static void vmx_get_cpu(struct vmx_vcpu *vcpu)
 {
 	int cur_cpu = get_cpu();
 
+	/*
+	 * useful link :https://wiki.osdev.org/SWAPGS
+	 * MSR_KERNEL_GS_BASE contain the base address of the structure contain kernel per-cpu data
+	 * wrmsrl write current vcpu's "guest_kernel_gs_base" with MSR_KERNEL_GS_BASE data
+	 * */
 	wrmsrl(MSR_KERNEL_GS_BASE, vcpu->guest_kernel_gs_base);
 
+	/*
+	 * local_vcpu is a vmx_vcpu type per-cpu variable, containing local data for
+	 * each processor on the system.
+	 * this_cpu_write(local_vcpu, vcpu) writes vcpu data into local_vcpu
+	 * __vmx_get_cpu_helper, clear/null the local_vcpu's vmcs field?
+	 * */
 	if (__this_cpu_read(local_vcpu) != vcpu) {
 		this_cpu_write(local_vcpu, vcpu);
 
@@ -679,6 +733,10 @@ static void vmx_get_cpu(struct vmx_vcpu *vcpu)
 			else
 				vmcs_clear(vcpu->vmcs);
 
+			/*
+			 * What does the following functions is doing?
+			 * syncing current vcpu data with other cpus? why?
+			 * */
 			vpid_sync_context(vcpu->vpid);
 			ept_sync_context(vcpu->eptp);
 
@@ -698,6 +756,10 @@ static void vmx_get_cpu(struct vmx_vcpu *vcpu)
  */
 static void vmx_put_cpu(struct vmx_vcpu *vcpu)
 {
+    /*
+     * Why? vmx_get_cpu already put the MSR value into vcpu->guest_kernel_gs_base.
+     * why following line is needed?
+     * */
 	rdmsrl(MSR_KERNEL_GS_BASE, vcpu->guest_kernel_gs_base);
 	put_cpu();
 }
@@ -801,8 +863,18 @@ static void vmx_dump_cpu(struct vmx_vcpu *vcpu)
 	printk(KERN_INFO "vmx: --- End VCPU Dump ---\n");
 }
 
+/*
+ * located in asm/vmx.h, this header is already included at the begining
+ * For some reason it's not recognizing.
+ * */
+#define VMX_EPT_DEFAULT_MT			0x6ull
+#define VMX_EPT_DEFAULT_GAW			3
+#define VMX_EPT_GAW_EPTP_SHIFT			3
+#define VMX_EPT_AD_ENABLE_BIT			(1ull << 6)
+
 static u64 construct_eptp(unsigned long root_hpa)
 {
+
 	u64 eptp;
 
 	/* TODO write the value reading from MSR */
@@ -815,7 +887,7 @@ static u64 construct_eptp(unsigned long root_hpa)
 	return eptp;
 }
 
-/**
+/*
  * vmx_setup_initial_guest_state - configures the initial state of guest registers
  */
 static void vmx_setup_initial_guest_state(struct dune_config *conf)
@@ -1125,6 +1197,8 @@ static void vmx_setup_vmcs(struct vmx_vcpu *vcpu)
 	vmx_setup_constant_host_state(vcpu);
 }
 
+
+
 /**
  * vmx_allocate_vpid - reserves a vpid and sets it in the VCPU
  * @vmx: the VCPU
@@ -1136,6 +1210,14 @@ static int vmx_allocate_vpid(struct vmx_vcpu *vmx)
 	vmx->vpid = 0;
 
 	spin_lock(&vmx_vpid_lock);
+
+	/* Find the first clear (0) bit, starting from vmx_vpid_bitmap memory address.
+	 * total number of bit to search is VMX_NR_VPIDS
+	 *
+	 * Returns the bit-number of the first zero bit,
+	 * not the number of the byte containing a bit. So, It will find bit 0 in 0 position.
+	 * because we set bit 0 to 0 during vmx_vpid_bitmap declearation.
+	*/
 	vpid = find_first_zero_bit(vmx_vpid_bitmap, VMX_NR_VPIDS);
 	if (vpid < VMX_NR_VPIDS) {
 		vmx->vpid = vpid;
@@ -1210,6 +1292,15 @@ static void vmx_copy_registers_to_conf(struct vmx_vcpu *vcpu, struct dune_config
 }
 
 /**
+ * Following function is copied form kernel 4.40, vmx_create_vcpu use this function
+ * but could not find in the current kernel asm/desc.h file
+ * */
+static inline void native_store_idt(struct desc_ptr *dtr)
+{
+    asm volatile("sidt %0":"=m" (*dtr));
+}
+
+/**
  * vmx_create_vcpu - allocates and initializes a new virtual cpu
  *
  * Returns: A new VCPU structure
@@ -1249,10 +1340,22 @@ static struct vmx_vcpu * vmx_create_vcpu(struct dune_config *conf)
 	vcpu->cpu = -1;
 	vcpu->syscall_tbl = (void *) &dune_syscall_tbl;
 
+	/*
+	 * This function is here : https://elixir.bootlin.com/linux/v4.4/source/arch/x86/include/asm/desc.h#L231
+	 * version before 4.40 did not have it?
+	 * I copied the function from 4.40, defination is right above this function
+	 */
 	native_store_idt(&dt);
+
 	vcpu->idt_base = (void *)dt.address;
 
 	spin_lock_init(&vcpu->ept_lock);
+
+	/*
+	 * Implemented in ept.c
+	 * allocate memory for ept and set vcpu->ept_root with the physical address
+	 * return 0 in success
+	 * */
 	if (vmx_init_ept(vcpu))
 		goto fail_ept;
 	vcpu->eptp = construct_eptp(vcpu->ept_root);
@@ -1346,8 +1449,19 @@ static int dune_exit_group(int error_code)
 static void make_pt_regs(struct vmx_vcpu *vcpu, struct pt_regs *regs,
 			 int sysnr)
 {
+    /*
+     * coping all the vcpu register content into "regs"
+     *  sysnr is the syscall number for __NR_Clone:56
+     * */
+
 	regs->ax = sysnr;
+
+	/*
+	 * orig_ax: On syscall entry, this is syscall#. On CPU exception, this is error code.
+     *          On hw interrupt, it's IRQ number:
+     */
 	regs->orig_ax = vcpu->regs[VCPU_REGS_RAX];
+
 	regs->bx = vcpu->regs[VCPU_REGS_RBX];
 	regs->cx = vcpu->regs[VCPU_REGS_RCX];
 	regs->dx = vcpu->regs[VCPU_REGS_RDX];
@@ -1363,12 +1477,20 @@ static void make_pt_regs(struct vmx_vcpu *vcpu, struct pt_regs *regs,
 	regs->r15 = vcpu->regs[VCPU_REGS_R15];
 	regs->bp = vcpu->regs[VCPU_REGS_RBP];
 
+	/*
+	 * Load VCPU with the current register content
+	 * Load VMCS into vcpu
+	 * */
 	vmx_get_cpu(vcpu);
 	regs->ip = vmcs_readl(GUEST_RIP);
 	regs->sp = vmcs_readl(GUEST_RSP);
 	/* FIXME: do we need to set up other flags? */
 	regs->flags = (vmcs_readl(GUEST_RFLAGS) & 0xFF) |
 		      X86_EFLAGS_IF | 0x2;
+
+	/*
+	 * why? just to enable kernel preemption? why I need to read from MSR?
+	 * */
 	vmx_put_cpu(vcpu);
 
 	/*
@@ -1388,6 +1510,11 @@ static void make_pt_regs(struct vmx_vcpu *vcpu, struct pt_regs *regs,
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
+
+/*
+ * What is all this flags are for?
+ * what is tls?
+ * */
 static long dune_sys_clone(unsigned long clone_flags, unsigned long newsp,
 		void __user *parent_tid, void __user *child_tid,
 		unsigned long tls)
@@ -1395,9 +1522,15 @@ static long dune_sys_clone(unsigned long clone_flags, unsigned long newsp,
 	struct vmx_vcpu *vcpu;
 	struct pt_regs regs;
 
+	/*moving content of r11 into vcpu*/
 	asm("movq %%r11, %0" : "=r"(vcpu));
 
 	make_pt_regs(vcpu, &regs, __NR_clone);
+
+	/* Currently newsp( new stack pointer) is empty. Because this variable just
+	 * initialize it. Therefore it is false at first. !newsp == true.
+	 * Then setting newsp
+	 * */
 	if (!newsp)
 		newsp = regs.sp;
 
@@ -1449,9 +1582,13 @@ static long dune_sys_vfork(void)
 
 static void vmx_init_syscall(void)
 {
-	memcpy(dune_syscall_tbl, (void *) SYSCALL_TBL,
-	       sizeof(sys_call_ptr_t) * NUM_SYSCALLS);
-	
+    /*
+     * copying the contents of SYSCALL_TBL into dune_syscall_tbl,
+     * */
+	//memcpy(dune_syscall_tbl, (void *) SYSCALL_TBL,sizeof(sys_call_ptr_t) * NUM_SYSCALLS);
+    memcpy(dune_syscall_tbl, (void *) sys_call_table,sizeof(sys_call_ptr_t) * NUM_SYSCALLS);
+
+
 	dune_syscall_tbl[__NR_exit] = (void *) &dune_exit;
 	dune_syscall_tbl[__NR_exit_group] = (void *) &dune_exit_group;
 	dune_syscall_tbl[__NR_clone] = (void *) &dune_sys_clone;
@@ -1785,7 +1922,9 @@ static void vmx_handle_external_interrupt(struct vmx_vcpu *vcpu, u32 exit_intr_i
 		register unsigned long current_stack_pointer asm(_ASM_SP);
 		vector =  exit_intr_info & INTR_INFO_VECTOR_MASK;
 		desc = (gate_desc *)vcpu->idt_base + vector;
-		entry = gate_offset(*desc);
+		//Original line
+        //entry = gate_offset(*desc);
+		entry = gate_offset(desc);
 
 		if (vector == POSTED_INTR_VECTOR) {
 			dune_apic_write_eoi();
@@ -1887,6 +2026,12 @@ static void vmx_handle_queued_interrupts(struct vmx_vcpu *vcpu)
  * vmx_launch - the main loop for a VMX Dune process
  * @conf: the launch configuration
  */
+
+/*
+ * this function is called from core.c
+ * called by dune_enter(), which is called via ioctl
+ *
+ * */
 int vmx_launch(struct dune_config *conf, int64_t *ret_code)
 {
 	int ret, done = 0;
@@ -2105,6 +2250,11 @@ __init int vmx_init(void)
 
 	vmx_init_syscall();
 
+	/** Setting up vmcs_config structure
+	 * adjust PIN base or processor base VM execution settings
+	 *
+	 * Need more help on this function
+	 * */
 	if (setup_vmcs_config(&vmcs_config) < 0)
 		return -EIO;
 
@@ -2128,7 +2278,13 @@ __init int vmx_init(void)
 		return -ENOMEM;
 	}
 
+	//
 	memset(msr_bitmap, 0xff, PAGE_SIZE);
+
+	/*
+	 * Find a bit from MSR bit string located at msr_bitmap address and clear it.
+	 * */
+
 	__vmx_disable_intercept_for_msr(msr_bitmap, MSR_FS_BASE);
 	__vmx_disable_intercept_for_msr(msr_bitmap, MSR_GS_BASE);
 	__vmx_disable_intercept_for_msr(msr_bitmap, MSR_PKG_ENERGY_STATUS);
@@ -2137,24 +2293,42 @@ __init int vmx_init(void)
 
 	/* APIC virtualization and posted interrupts */
 
+
+	/*Enabling secondary processor based VM execution*/
 	if (cpu_has_apic_register_virt()) {
 		__vmx_disable_intercept_for_msr(msr_bitmap, APIC_BASE_MSR + (APIC_ID >> 4));
 		__vmx_disable_intercept_for_msr(msr_bitmap, APIC_BASE_MSR + (APIC_EOI >> 4));
 	}
 
+	/*
+	 * Get the highest number of logical processor, allocate memory for total number of
+	 * processor. Use memory fencing to prevent out of order execution?
+	 *
+	 * Start APIC virtualization for dune. Allocate memory for process that request
+	 * dune service.
+	 * */
 	if (!dune_apic_init()) {
 		printk(KERN_ERR "vmx: could not initialize APIC routing table\n");
 		return -EIO;
 	}
 
+	/*
+	 * Clear both virtual_apic_pages & posted_interrupt_descriptors memory
+	 */
 	memset(virtual_apic_pages, 0, sizeof(void *) * NR_CPUS);
 	memset(posted_interrupt_descriptors, 0, sizeof(posted_interrupt_desc *) * NR_CPUS);
 	for_each_possible_cpu(cpu) {
+	    /*Allocate free page for each available cpu*/
 		virtual_apic_pages[cpu] = (void *)__get_free_page(GFP_KERNEL);
 		if (!virtual_apic_pages[cpu]) {
 			r = -ENOMEM;
 			goto failed3;
 		}
+
+		/*
+		 * Why clearing the allocated pages?
+		 * What is the difference between this memset and previous memset? Why?
+		 * */
 		memset(virtual_apic_pages[cpu], 0x00, PAGE_SIZE);
 		posted_interrupt_descriptors[cpu] = (posted_interrupt_desc *)__get_free_page(GFP_KERNEL);
 		if (!posted_interrupt_descriptors[cpu]) {
@@ -2166,19 +2340,35 @@ __init int vmx_init(void)
 
 	set_bit(0, vmx_vpid_bitmap); /* 0 is reserved for host */
 
+
+	/*
+	 * Following loop allocating memory for vmxarea on each cpu
+	 * */
 	for_each_possible_cpu(cpu) {
 		struct vmcs *vmxon_buf;
 
+		/*
+		 * http://hypervsir.blogspot.com/2014/09/thoughts-on-vmxon-and-vmcs-regions-in.html
+		 * allocating a region of memory (called the VMXON region) that the logical
+		 * processor uses to support VMX operation.
+		 *
+		 * following function is allocating memory VMXON region.
+		 * */
 		vmxon_buf = __vmx_alloc_vmcs(cpu);
 		if (!vmxon_buf) {
 			vmx_free_vmxon_areas();
 			return -ENOMEM;
 		}
 
+		// Allocating vmxarea memory on each cpu
 		per_cpu(vmxarea, cpu) = vmxon_buf;
 	}
 
+	/*
+	 * set vmx_enable_failed to 0, but why?
+	*/
 	atomic_set(&vmx_enable_failed, 0);
+
 	if (on_each_cpu(vmx_enable, NULL, 1)) {
 		printk(KERN_ERR "vmx: timeout waiting for VMX mode enable.\n");
 		r = -EIO;
