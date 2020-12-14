@@ -1,4 +1,4 @@
-//#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
 #include <sched.h>
 #include <openssl/opensslconf.h>
 #include <stdio.h>
@@ -30,6 +30,23 @@
 #include "libdune/dune.h"
 #include "libdune/cpu-x86.h"
 
+
+// test function to check running CPU number.
+// cat /proc/sched_debug | less
+// should show the running process (openssl, in this case) into CPU 1
+void do_someWork(int a ,int b){
+
+    volatile int c;
+    printf("Inside do_somework(), current CPU set, current cpu is  = %d\n", sched_getcpu());
+    for(int i=0;i<100000;i++){
+        c =c+a+b;
+        //printf("C is %d\n",c);
+        sleep(1);
+        //printf("Process ID is %d\n",getpid());
+    }
+}
+
+
 // Start: all the functions for RSA operation
 
 /* this is the AES master key, in this project, it is supposed to be derived from the debug registers. */
@@ -42,10 +59,35 @@ unsigned char mkt[16] = { \
 
 #define errExit(msg)    do { perror(msg); exit(EXIT_FAILURE); \
                                } while (0)
-//#define buff_size 3
 
-# define KEY_BUFFER_SIZE 992 // this is for 1024-bit key. For different key lenght it will be different
+# define KEY_BUFFER_SIZE 992 // this is for 1024-bit key. For different key length it will be different
 #define KEY_LEN 128
+
+
+//*********************  global variable for cache_crypto_env struct ************************//
+#define CACHE_STACK_SIZE 10000 // most likely will be changed, depending on the size of the structure
+
+// Assuming in my processor, my 4 cores are assigned into two separate cache set
+// core 0,1 into cache set 0
+// core 2,3 into cache set 1
+// I need to find a dynamic way to figure out how many cache set I have but until then this is my configuration
+#define SET_LEN 2
+
+
+// Secure env structure
+struct CACHE_CRYPTO_ENV{
+    unsigned char masterKey[128/8]; // for 128 bit master key
+    aes_context aes; // initialize AES
+    rsa_context rsa; // initialize RSA
+    unsigned char cachestack[CACHE_STACK_SIZE];
+    //unsigned long privateKeyID;
+    unsigned char in[KEY_BUFFER_SIZE]; // KEY_BUFFER_SIZE is the total size of the encrypted key
+    // after add padding for AES encryption
+
+    unsigned char out[KEY_BUFFER_SIZE]; // Need to remove those extra padding to get back the original key
+
+}cacheCryptoEnv;
+
 
 
 //void clear_buffer (char *buffer){
@@ -82,6 +124,88 @@ static unsigned long long get_dr3(void){
 }
 
 
+// return CR0 current value
+u64 get_cr0(void){
+    u64 cr0;
+    __asm__ __volatile__ (
+    "mov %%cr0, %%rax\n\t"
+    "mov %%eax, %0\n\t"
+    : "=m" (cr0)
+    : /* no input */
+    : "%rax"
+    );
+    return cr0;
+}
+
+// set bit 30 if cr0
+int set_no_fill_mode(u64 cr0, int cpuID){
+    printf("Current Cpu is : %d\n", cpuID);
+    printf("cr0 from parameter is = 0x%" PRIx64 "\n", cr0);
+    printf("cr0 from get_cr0 is = 0x%" PRIx64 "\n", get_cr0());
+
+    // setting bit 30
+    __asm__ __volatile__ (
+    "mov %%cr0, %%rax\n\t"
+    "or $0x40000000, %%eax\n\t"
+    "mov %%rax, %%cr0\n\t"
+    ::
+    :"%rax"
+    );
+
+
+    printf("After no-fill mode cr0 is = 0x%" PRIx64 "\n", get_cr0());
+
+    return 1;
+}
+
+
+// check the if CPU1 memory is write back type
+bool get_memory_type(void){
+    // read CR0 and check for bit 29 & 30
+    printf("cr0 is = 0x%" PRIx64 "\n", get_cr0());
+
+    // checking bit 29 & 30, if any of the two bit is set. Then memory is not write back type.
+    if((get_cr0()&(1<<29)) || (get_cr0()&(1<<30))){
+        printf("CR0 ==> either bit 29/30 is set\n");
+        return false;
+    }
+    printf("Memory is write back type\n");
+    return true;
+}
+
+// calling all available cpu's expept cpu 1. And set the cr0 bit 30 for no-fill mode.
+// return true on success. False on failure
+bool enter_no_fill_mode(void){
+    cpu_set_t mask;
+    long nproc, i;
+
+    if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
+        perror("sched_getaffinity");
+        assert(false);
+    }
+    nproc = sysconf(_SC_NPROCESSORS_ONLN); // return number of total available cpu
+    //printf("sched_getaffinity = ");
+    for (i = 0; i < nproc; i++) {
+
+        // avoiding cpu1, because that is isolated
+        if(i!=1){
+            //printf("%d ", CPU_ISSET(i, &mask));
+            CPU_SET(i, &mask); // setting cpu affinity
+
+            //printf("Current cpu is %d\n", sched_getcpu());
+
+            //set_no_fill_mode(), set no-fill mode for current cpu. On success should return 1.
+            if(!set_no_fill_mode(get_cr0(), i)){
+                return false;
+            }
+
+        }
+    }
+    //printf("\n");
+
+    return true;
+
+}
 
 
 int myrand( void *rng_state, unsigned char *output, size_t len )
@@ -99,6 +223,8 @@ int myrand( void *rng_state, unsigned char *output, size_t len )
 
 int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
 
+    printf("Inside Decryption function, current CPU set, current cpu is  = %d\n", sched_getcpu());
+    //do_someWork(1,2);
     //printf("decryptFunction\n");
     int j, result=-1;
     //int N=7;
@@ -331,13 +457,7 @@ static int eng_rsa_pub_enc (int flen, const unsigned char *from, unsigned char *
 
 
 
-static int eng_rsa_pub_dec (int flen, const unsigned char *from,
-
-                            unsigned char *to, RSA * rsa, int padding)
-
-{
-
-
+static int eng_rsa_pub_dec (int flen, const unsigned char *from,  unsigned char *to, RSA * rsa, int padding){
 
     printf ("Engine is decrypting using pub key \n");
 
@@ -358,10 +478,6 @@ static int eng_rsa_priv_enc (int flen, const unsigned char *from, unsigned char 
     //RSA_private_encrypt (flen, from, to, rsa, RSA_PKCS1_PADDING);
 
 }
-
-
-
-
 
 static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char *to, RSA * rsa, int padding __attribute__ ((unused))){
 
@@ -397,8 +513,8 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     //printf("buffer is \n %s\n", buffer);
     //printf("Size of Buffer is %d\n", strlen(buffer));
 
-    // here total message lenght is strlen(buffer)/AES_BLOCK_SIZE, or 986/16 =61.625
-    // but the following line rounded it to 61. So, .625 lenght if message is missing
+    // here total message length is strlen(buffer)/AES_BLOCK_SIZE, or 986/16 =61.625
+    // but the following line rounded it to 61. So, .625 length of the message is missing
     // need to pad the buffer to make it multiple of 16. Reminder of 986%16=10. So we need (16-10)=6
     //  extra char to padding with the buffer
     // before performing the encryption operation
@@ -443,8 +559,23 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     printf("Encrypted private key is -->\n %s \n", private_encrypt);
 
 
+// ************************************ Start Calling decryption function here ******************************//
 
-    // Calling decryption function here
+    // printing the coreID
+    printf(" First: current cpu is  = %d\n", sched_getcpu());
+
+    // Change CPU affinity to CPU 1
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+
+    // setting current thread affinity to cpu 1
+    CPU_SET(1, &mask);
+
+    if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
+        perror("sched_setaffinity");
+        assert(false);
+    }
+    printf(" After cpu is set to 1==> current cpu is  = %d\n", sched_getcpu());
 
 
     // DUNE starts
@@ -458,49 +589,37 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     }
     printf("hello: now printing from dune mode\n");
 
-    // To check if dune is working
+    //do_someWork(2,3);
+    // Even though following line print current cpu is 123 (I don't know why).
+    // cat /proc/sched_debug | grep openssl
+    // shows openssl is running on CPU 1. when calling do_someWork() function
+    printf("After dune initialize, current CPU set, current cpu is  = %d\n", sched_getcpu());
     //exit(0);
 
-    // print dr registers
-    unsigned long long dr0;
-    unsigned long long dr1;
-    unsigned long long dr2;
-    unsigned long long dr3;
-    printf("dr0 is %lx\n", dr0);
-    printf("dr2 is %lx\n", dr1);
-    printf("dr2 is %lx\n", dr3);
-    printf("dr3 is %lx\n", dr3);
+    // check if cpu 1 has write back memory type.
+    // Write back memory : CR0 ==> bit 29 & 30 should be 0
+    u64 cr0=get_cr0();
+    printf("cr0 = 0x%8.8X\n", cr0);
 
-
-/*
- * Disabling RTM
- * */
-
-
-/*
-    // RTM starts
-    int check=-1;
-    unsigned status;
-    //asm volatile("cli": : :"memory");
-    while(check!=1){
-        if ((status = _xbegin()) == _XBEGIN_STARTED) {
-            //if(decryptFunction(from, private_encrypt)){
-            if(test_otherfunction(5,6)){
-                check=1;
-                _xend();
-            }
-        }else{
-            printf("RTM: Transaction failed\n");
-            printf("status is %ld\n", status);
-            //break;
-        }
-        //asm volatile("sti": : :"memory");
-        printf("RTM : Check is %d\n", check);
-        //asm volatile("sti": : :"memory");
-
+    // for write back memory type, get_memory_type() should return true
+    if (!get_memory_type()){
+        printf("Memory is not write back type");
+        exit(0);
     }
 
-*/
+    // do i need to use semaphore?
+
+    // changing other CPU into no-fill mode. On success should return true
+    if(!enter_no_fill_mode()){
+        printf("Could not set no-fill mode\n");
+        exit(0);
+    }
+
+    //}
+
+
+
+
     result =decryptFunction(from, private_encrypt);
 
 
