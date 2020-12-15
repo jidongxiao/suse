@@ -138,15 +138,34 @@ u64 get_cr0(void){
 }
 
 // set bit 30 if cr0
-int set_no_fill_mode(u64 cr0, int cpuID){
+int exit_no_fill_mode(int cpuID){
+    printf("\nExit no-fill mode Current Cpu is : %d\n", cpuID);
+    printf("cr0 from get_cr0 is = 0x%" PRIx64 "\n", get_cr0());
+
+    // clear bit 30
+    __asm__ __volatile__ (
+    "mov %%cr0, %%rax\n\t"
+    "and $~(1<<30), %%eax\n\t"
+    "mov %%rax, %%cr0\n\t"
+    ::
+    :"%rax"
+    );
+
+
+    printf("After clear no-fill mode cr0 is = 0x%" PRIx64 "\n\n\n", get_cr0());
+
+    return 1;
+}
+
+// set bit 30 of cr0
+int set_no_fill_mode(int cpuID){
     printf("Current Cpu is : %d\n", cpuID);
-    printf("cr0 from parameter is = 0x%" PRIx64 "\n", cr0);
     printf("cr0 from get_cr0 is = 0x%" PRIx64 "\n", get_cr0());
 
     // setting bit 30
     __asm__ __volatile__ (
     "mov %%cr0, %%rax\n\t"
-    "or $0x40000000, %%eax\n\t"
+    "or $(1<<30), %%eax\n\t"
     "mov %%rax, %%cr0\n\t"
     ::
     :"%rax"
@@ -154,6 +173,10 @@ int set_no_fill_mode(u64 cr0, int cpuID){
 
 
     printf("After no-fill mode cr0 is = 0x%" PRIx64 "\n", get_cr0());
+
+
+    // testing code for clear CD (bit 30)
+    exit_no_fill_mode(cpuID);
 
     return 1;
 }
@@ -195,7 +218,7 @@ bool enter_no_fill_mode(void){
             //printf("Current cpu is %d\n", sched_getcpu());
 
             //set_no_fill_mode(), set no-fill mode for current cpu. On success should return 1.
-            if(!set_no_fill_mode(get_cr0(), i)){
+            if(!set_no_fill_mode(i)){
                 return false;
             }
 

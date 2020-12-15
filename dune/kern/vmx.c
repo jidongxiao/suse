@@ -1114,7 +1114,8 @@ static void vmx_setup_vmcs(struct vmx_vcpu *vcpu)
 	vmcs_write32(VM_EXIT_CONTROLS, vmcs_config.vmexit_ctrl);
 	vmcs_write32(VM_ENTRY_CONTROLS, vmcs_config.vmentry_ctrl);
 
-	vmcs_writel(CR0_GUEST_HOST_MASK, ~0ul);
+	//vmcs_writel(CR0_GUEST_HOST_MASK, ~0ul);
+    vmcs_writel(CR0_GUEST_HOST_MASK, 0ul);
 	vmcs_writel(CR4_GUEST_HOST_MASK, ~0ul);
 
 	//kvm_write_tsc(&vmx->vcpu, 0);
