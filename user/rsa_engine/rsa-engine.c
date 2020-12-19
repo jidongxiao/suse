@@ -46,6 +46,69 @@ void do_someWork(int a ,int b){
     }
 }
 
+// test function for multi core affinity
+int test_affinity_multipleCore(void){
+
+    cpu_set_t mask;
+    long nproc,i;
+    //int i;
+
+    nproc = sysconf(_SC_NPROCESSORS_ONLN); // return number of total available cpu
+
+    for (i = 0; i < nproc; i++) {
+
+        // avoiding cpu1
+        if(i!=1){
+            CPU_ZERO(&mask);
+            CPU_SET(i, &mask); // setting cpu affinity
+
+            if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
+                perror("sched_getaffinity");
+                assert(false);
+            }
+            printf("\nCurrent i=%ld and sched_getcpu() is %d\n", i,sched_getcpu());
+        }
+    }
+
+    return 1;
+}
+
+
+// affinity single core
+int test_affinity_single(void){
+
+    cpu_set_t mask;
+    long nproc,i;
+
+    CPU_ZERO(&mask);
+    CPU_SET(1, &mask);  // 1 is the target cpu number
+    if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1) { // 0 means current process
+        perror("sched_setaffinity");
+        assert(false);
+    }
+    printf("\n\nSingle core: Current sched_getcpu() is %d\n",sched_getcpu());
+
+    return 1;
+}
+
+// test current cpu online
+void print_affinity() {
+    cpu_set_t mask;
+    long nproc, i;
+
+    if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
+        perror("sched_getaffinity");
+        assert(false);
+    }
+    nproc = sysconf(_SC_NPROCESSORS_ONLN);
+    printf("sched_getaffinity = ");
+    for (i = 0; i < nproc; i++) {
+        printf("%d ", CPU_ISSET(i, &mask));
+    }
+    printf("\n");
+}
+
+
 
 // Start: all the functions for RSA operation
 
@@ -67,32 +130,45 @@ unsigned char mkt[16] = { \
 //*********************  global variable for cache_crypto_env struct ************************//
 #define CACHE_STACK_SIZE 10000 // most likely will be changed, depending on the size of the structure
 
-// Assuming in my processor, my 4 cores are assigned into two separate cache set
-// core 0,1 into cache set 0
-// core 2,3 into cache set 1
+// Assuming in my processor, my 4 cores are assigned into 2 separate cache set
+// core 0,1 (cpu 0-3) into cache set 0
+// core 2,3 (cpu 4-7) into cache set 1
 // I need to find a dynamic way to figure out how many cache set I have but until then this is my configuration
-#define SET_LEN 2
+#define SET_NUM 2
 
 
-// Secure env structure
+// Secure CRYPTO structure
 struct CACHE_CRYPTO_ENV{
     unsigned char masterKey[128/8]; // for 128 bit master key
     aes_context aes; // initialize AES
     rsa_context rsa; // initialize RSA
     unsigned char cachestack[CACHE_STACK_SIZE];
     //unsigned long privateKeyID;
+    unsigned long encryptPrivateKey;
     unsigned char in[KEY_BUFFER_SIZE]; // KEY_BUFFER_SIZE is the total size of the encrypted key
-    // after add padding for AES encryption
+                                       // in --> encrypted RSA privateKey
 
     unsigned char out[KEY_BUFFER_SIZE]; // Need to remove those extra padding to get back the original key
+                                        // out--> plaintext RSA privateKey
 
-}cacheCryptoEnv;
+};
 
+// Following structure contain the parameter for decryption().
+struct ENV{
+    unsigned char *encMsg[1000];
+    unsigned char *encPrivateKey[KEY_BUFFER_SIZE];
+    //struct CACHE_CRYPTO_ENV structCacheCryptoEnv;
+}env;
 
-
-//void clear_buffer (char *buffer){
-//    memset(buffer,0,buff_size);
-//}
+ // Check Interrupts status
+ // Returns a true boolean value if irq are enabled for the CPU
+static inline bool are_interrupts_enabled(){
+    unsigned long flags;
+    asm volatile ( "pushf\n\t"
+                   "pop %0"
+    : "=g"(flags) );
+    return flags & (1 << 9);
+}
 
 
 // reading debug registers
@@ -137,54 +213,138 @@ u64 get_cr0(void){
     return cr0;
 }
 
-// set bit 30 if cr0
-int exit_no_fill_mode(int cpuID){
-    printf("\nExit no-fill mode Current Cpu is : %d\n", cpuID);
-    printf("cr0 from get_cr0 is = 0x%" PRIx64 "\n", get_cr0());
 
-    // clear bit 30
-    __asm__ __volatile__ (
-    "mov %%cr0, %%rax\n\t"
-    "and $~(1<<30), %%eax\n\t"
-    "mov %%rax, %%cr0\n\t"
-    ::
-    :"%rax"
-    );
+// clear bit 30 of cr0
+//Clearing all the CPU core except cpu1 from no-fill mode
+// return 1 on success.
+int clear_no_fill_mode(int idcacheNum){
+
+    long nproc,i;
+    nproc = sysconf(_SC_NPROCESSORS_ONLN); // return number of total available cpu
+
+    switch (idcacheNum) {
+        case 0:
+            // enable no-fill mode for cpu 0-3
+            printf("Inside clearing cache set 1\n");
+            for (i = 0; i <= 3; i++) {
+                // avoiding cpu1
+                if(i!=1){
+                    cpu_set_t mask;
+                    CPU_ZERO(&mask);
+                    CPU_SET(i, &mask); // setting cpu affinity
+
+                    if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
+                        perror("sched_getaffinity");
+                        assert(false);
+                    }
+
+                    printf("\n\nExit no-fill mode[cpu%ld]: sched_getcpu() is %d\n",i, sched_getcpu());
+                    printf("Exit no-fill mode: before cr0 is = 0x%8.8X\n", get_cr0());
+
+                    // clear bit 30
+                    __asm__ __volatile__ (
+                    "mov %%cr0, %%rax\n\t"
+                    "and $~(1<<30), %%eax\n\t"
+                    "mov %%rax, %%cr0\n\t"
+                    ::
+                    :"%rax"
+                    );
+                    printf("After clear no-fill mode[cpu%ld] cr0 is =0x%8.8X\n\n", i, get_cr0());
+
+                }
+            }
+            break;
+
+        case 1:
+            // enable no fill-mode for cpu 4-7
+            printf("no-fill mode for cpu 4-7 is not setup yet.\n");
+            break;
+
+        default:
+            printf("Error while setting no-fill mode\n");
+            return 0;
+    }
 
 
-    printf("After clear no-fill mode cr0 is = 0x%" PRIx64 "\n\n\n", get_cr0());
+    //for (i = 0; i < nproc; i++) {
 
     return 1;
 }
 
-// set bit 30 of cr0
-int set_no_fill_mode(int cpuID){
-    printf("Current Cpu is : %d\n", cpuID);
-    printf("cr0 from get_cr0 is = 0x%" PRIx64 "\n", get_cr0());
+// set bit 30 of cr0.
+// calling all available cpu's expept cpu 1. And set the cr0 bit 30 for no-fill mode.
+// return 1 on success.
+int set_no_fill_mode(int idcacheNum){
 
-    // setting bit 30
-    __asm__ __volatile__ (
-    "mov %%cr0, %%rax\n\t"
-    "or $(1<<30), %%eax\n\t"
-    "mov %%rax, %%cr0\n\t"
-    ::
-    :"%rax"
-    );
+    long nproc,i;
+    nproc = sysconf(_SC_NPROCESSORS_ONLN); // return number of total available cpu
 
+    switch (idcacheNum) {
+        case 0:
+            // enable no-fill mode for cpu 0-3
+            printf("Inside cache set 1\n");
+            for (i = 0; i <= 3; i++) {
 
-    printf("After no-fill mode cr0 is = 0x%" PRIx64 "\n", get_cr0());
+                // avoiding cpu1
+                if(i!=1){
+                    cpu_set_t mask;
+                    CPU_ZERO(&mask);
+                    CPU_SET(i, &mask); // setting cpu affinity
 
+                    if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
+                        perror("sched_getaffinity");
+                        assert(false);
+                    }
 
-    // testing code for clear CD (bit 30)
-    exit_no_fill_mode(cpuID);
+                    printf("\n\nSet no-fill mode[cpu%ld]: sched_getcpu() is %d\n", i, sched_getcpu());
+                    printf("Set no-fill mode: before cr0 is = 0x%8.8X\n", get_cr0());
+
+                    // clear bit 30
+                    __asm__ __volatile__ (
+                    "mov %%cr0, %%rax\n\t"
+                    "or $(1<<30), %%eax\n\t"
+                    "mov %%rax, %%cr0\n\t"
+                    ::
+                    :"%rax"
+                    );
+                    printf("Set no-fill mode[cpu%ld]: After cr0 is =0x%8.8X\n\n", i,get_cr0());
+
+                }
+            }
+            break;
+
+        case 1:
+            // enable no fill-mode for cpu 4-7
+            printf("no-fill mode for cpu 4-7 is not setup yet.\n");
+            break;
+
+        default:
+            printf("Error while setting no-fill mode\n");
+            return 0;
+    }
 
     return 1;
 }
-
 
 // check the if CPU1 memory is write back type
 bool get_memory_type(void){
+
+    // Change CPU affinity to CPU 1
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+
+    // setting current thread affinity to cpu 1
+    CPU_SET(1, &mask);
+
+    if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
+        perror("sched_setaffinity");
+        assert(false);
+    }
+
     // read CR0 and check for bit 29 & 30
+    printf("Inside get_memory_type: current cpu is %d\n", sched_getcpu());
+
+
     printf("cr0 is = 0x%" PRIx64 "\n", get_cr0());
 
     // checking bit 29 & 30, if any of the two bit is set. Then memory is not write back type.
@@ -192,42 +352,10 @@ bool get_memory_type(void){
         printf("CR0 ==> either bit 29/30 is set\n");
         return false;
     }
+
+
     printf("Memory is write back type\n");
     return true;
-}
-
-// calling all available cpu's expept cpu 1. And set the cr0 bit 30 for no-fill mode.
-// return true on success. False on failure
-bool enter_no_fill_mode(void){
-    cpu_set_t mask;
-    long nproc, i;
-
-    if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
-        perror("sched_getaffinity");
-        assert(false);
-    }
-    nproc = sysconf(_SC_NPROCESSORS_ONLN); // return number of total available cpu
-    //printf("sched_getaffinity = ");
-    for (i = 0; i < nproc; i++) {
-
-        // avoiding cpu1, because that is isolated
-        if(i!=1){
-            //printf("%d ", CPU_ISSET(i, &mask));
-            CPU_SET(i, &mask); // setting cpu affinity
-
-            //printf("Current cpu is %d\n", sched_getcpu());
-
-            //set_no_fill_mode(), set no-fill mode for current cpu. On success should return 1.
-            if(!set_no_fill_mode(i)){
-                return false;
-            }
-
-        }
-    }
-    //printf("\n");
-
-    return true;
-
 }
 
 
@@ -246,6 +374,9 @@ int myrand( void *rng_state, unsigned char *output, size_t len )
 
 int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
 
+    // Need to populate cacheCrptoEnv here?
+
+
     printf("Inside Decryption function, current CPU set, current cpu is  = %d\n", sched_getcpu());
     //do_someWork(1,2);
     //printf("decryptFunction\n");
@@ -258,7 +389,7 @@ int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
 
 
 //    int len_cipher=strlen(from);
-//    unsigned char decrypt_plaintext[len_cipher]; // lencipher is causuing failure, need to find a size in Byte
+//    unsigned char decrypt_plaintext[len_cipher]; // len cipher is causing failure, need to find a size in Byte
 
     unsigned char private_decrypt[KEY_BUFFER_SIZE];
 
@@ -584,22 +715,10 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
 // ************************************ Start Calling decryption function here ******************************//
 
-    // printing the coreID
-    printf(" First: current cpu is  = %d\n", sched_getcpu());
 
-    // Change CPU affinity to CPU 1
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-
-    // setting current thread affinity to cpu 1
-    CPU_SET(1, &mask);
-
-    if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
-        perror("sched_setaffinity");
-        assert(false);
-    }
-    printf(" After cpu is set to 1==> current cpu is  = %d\n", sched_getcpu());
-
+    //struct CACHE_CRYPTO_ENV cacheCryptoEnv[SET_NUM];
+    struct CACHE_CRYPTO_ENV cacheCryptoEnv;
+    //struct ENV env;
 
     // DUNE starts
     volatile int ret;
@@ -612,43 +731,113 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     }
     printf("hello: now printing from dune mode\n");
 
-    //do_someWork(2,3);
-    // Even though following line print current cpu is 123 (I don't know why).
-    // cat /proc/sched_debug | grep openssl
-    // shows openssl is running on CPU 1. when calling do_someWork() function
-    printf("After dune initialize, current CPU set, current cpu is  = %d\n", sched_getcpu());
-    //exit(0);
+    // printing the coreID
+    printf(" First: current cpu is  = %d\n", sched_getcpu());
+
+    // core & cache ID
+    // for now assuming CPU has 2 separate cache set [0,1]
+    // cpu 0-3 is in cache set 0
+    // cpu 4-7 is in cache set 1
+
+    int idcore=1;
+    int idcache=0; // as I'm targeting cpu 1
 
     // check if cpu 1 has write back memory type.
     // Write back memory : CR0 ==> bit 29 & 30 should be 0
-    u64 cr0=get_cr0();
-    printf("cr0 = 0x%8.8X\n", cr0);
-
     // for write back memory type, get_memory_type() should return true
     if (!get_memory_type()){
         printf("Memory is not write back type");
         exit(0);
     }
 
-    // do i need to use semaphore?
-
-    // changing other CPU into no-fill mode. On success should return true
-    if(!enter_no_fill_mode()){
-        printf("Could not set no-fill mode\n");
+    // setting other CPUs to no-fill mode
+    // set_no_fill_mode() return 1 on success
+    if(!set_no_fill_mode(idcache)){
+        printf("Setting Other CPUs to no-fill mode failed\n");
         exit(0);
     }
 
-    //}
+
+
+  //  clear_no_fill_mode(idcache);
+  //  exit(0);
+
+    // Change CPU affinity to CPU 1, Isolated cpu
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+
+    // setting current thread affinity to cpu 1
+    CPU_SET(1, &mask);
+
+    if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
+        perror("sched_setaffinity");
+        assert(false);
+    }
+    printf("  ***************** CPU 1 is set for operation **************** \n");
+
+
+    // Even though following line print current cpu is 123 (I don't know why).
+    // cat /proc/sched_debug | grep openssl
+    // shows openssl is running on CPU 1. when calling do_someWork() function
+
+    //do_someWork(2,3);
+    //exit(0);
+
+
+    // do i need to use semaphore?
+    // Paper says, Semaphore are used to avoid multiple cores in the same cache-sharing set to
+    // execute Copker concurrently, as only one cacheCryptoEnv is allowed for each separate cache set.
+
+    // Look for term cpu-hotplug
+
+    // In our case, We always run our engine in core 1. Therefore, other core in the same cache set will not
+    // be able to run our engine
+
+
+    // Disable interrupt
+    asm volatile("cli": : :"memory");
+
+    // Check Interrupt status : Returns a true boolean value if irq are enabled for the CPU
+
+    printf("Interrupt enable?:\t");
+    printf(are_interrupts_enabled() ? "Yes\n" : "No\n");
 
 
 
 
-    result =decryptFunction(from, private_encrypt);
 
+    // Setting up secure env
+    struct ENV env;
+    printf("size of env is %ld\n", sizeof (env));
 
-    // RTM ends
+    // coping both encrypted message & RSA private key into env
+    memcpy(env.encMsg, from, 1000);
+    memcpy(env.encPrivateKey,private_encrypt,KEY_BUFFER_SIZE);
+
+    // checking decryption function parameter
+    //result =decryptFunction(from, private_encrypt);
+    result =decryptFunction(env.encMsg, env.encPrivateKey);
     printf("after operation, result is %d\n",result);
 
+
+
+
+
+
+    // restore Interrupts
+    asm volatile("sti": : :"memory");
+    printf("Interrupt enable?:\t");
+    printf(are_interrupts_enabled() ? "Yes\n" : "No\n");
+
+    // clear no fill mode. Return 1 on success
+    if(!clear_no_fill_mode(idcache)){
+        printf("Error: Couldn't clear CD flag of cr0 register.\n");
+        exit(0);
+    }
+
+
+
+    // Without it code cause segfault. Will look at it later
     exit(0);
 
 }

@@ -19,6 +19,8 @@
 		I. openssl rsautl -decrypt -inkey private.pem -in msg.enc -engine rsa-engine-new
 		or		
 		II. openssl rsautl -decrypt -inkey private.pem -in msg.enc -engine `pwd`/librsa_engine.so
+		or
+		III. taskset -c 1 sudo openssl rsautl -decrypt -inkey private.pem -in msg.enc -engine rsa-engine-new
 
 
 ######################## Compile all the RSA related file into one single lib file ############

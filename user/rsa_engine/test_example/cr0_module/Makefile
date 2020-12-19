@@ -3,7 +3,7 @@ obj-m += cr0.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
-	#sudo insmod cr0.ko
+	sudo insmod cr0.ko
 	
 
 clean:
