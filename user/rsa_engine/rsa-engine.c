@@ -151,8 +151,8 @@ struct CACHE_CRYPTO_ENV{
     unsigned char out[KEY_BUFFER_SIZE]; // Need to remove those extra padding to get back the original key
                                         // out--> plaintext RSA privateKey
 
-};
-struct CACHE_CRYPTO_ENV cacheCryptoEnv;
+}cacheCryptoEnv;
+//struct CACHE_CRYPTO_ENV cacheCryptoEnv;
 
 
 // Following structure contain the parameter for decryption().
@@ -170,6 +170,7 @@ struct ENV{
 
 
 }env;
+
 
  // Check Interrupts status
  // Returns a true boolean value if irq are enabled for the CPU
@@ -372,30 +373,57 @@ bool get_memory_type(void){
 
 
 int fill_L1dcache(struct ENV *env){
+    printf("fill_L1D cache: env size is %ld\n", sizeof *(env->structCacheCryptoEnv));
 
-    // what is the use of env here?
+    // address of structCacheCryptoEnv->masterKey. Should be same as original cacheCryptoEnv->masterKey
+    printf("Inside fill_L1D cache: master Keys address : 0x%8.8X\n", &(env->structCacheCryptoEnv->masterKey));
+
+
+    printf("inside fill_L1d: cache master key, first Byte (0) is : 0x%8.8X\n",env->structCacheCryptoEnv->masterKey[0]);
+    printf("Original master key: %x\n",mkt[0]);
+
+
+
+
+
 
     // how to put into cache
     // each cacheline load 64 byte of data at a time
-    unsigned char *p,*b;
-    int forEachCacheLine = sizeof(cacheCryptoEnv);
+    unsigned char *p, *address,*byte_value;
+
+    int forEachCacheLine = sizeof *(env->structCacheCryptoEnv);
     printf("size of forEachCacheLine is %d\n", forEachCacheLine);
+
     for (int i = 0; i<forEachCacheLine ; i+=64) {
 
-        printf("i is %d\n",i);
+/*
+        printf("Byte %d \n",i);
 
         // read 1 byte from the cacheCryptoEnv
-        p=((unsigned char *)&cacheCryptoEnv)+i;
-        printf("Read from %p byte is %hhx\n", ((unsigned char *)&cacheCryptoEnv)+i, p);
-        //printf("Read from %p byte is %hhx\n", p, p);
-
+        p= ((unsigned char *)env->structCacheCryptoEnv)+i;
+        //printf("Read from %p byte is %hhx\n", ((unsigned char *)env->structCacheCryptoEnv)+i, *p);
+        printf("Read from %p byte is %hhx\n", p, *p);
 
         // write 1 byte
-        *(((unsigned char *)&cacheCryptoEnv)+i)=*p;
-        printf("Write into %p byte is %hhx\n\n", ((unsigned char *)&cacheCryptoEnv)+i, p);
+        *(((unsigned char *)env->structCacheCryptoEnv)+i)=*p;
+        printf("Write into %p \n\n", ((unsigned char *)env->structCacheCryptoEnv)+i);
+        //printf("current size is %ld\n", sizeof *(((unsigned char *)env->structCacheCryptoEnv)+i));
+
+*/
+
+        printf("Byte %d \n",i);
+
+        // read 1 byte from the cacheCryptoEnv
+        address=((unsigned char *)env->structCacheCryptoEnv);
+        byte_value=*(address+i);
+        printf("Read from %p byte is %hhx\n", address+i, byte_value);
+
+        // write 1 byte
+        *(address+i)=byte_value;
+        printf("Write into %p byte is %hhx\n\n", (address+i), byte_value);
+
 
     }
-
     return 1;
 }
 
@@ -757,6 +785,7 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
 // ************************************ Start Calling decryption function here ******************************//
 
+/*
 
     //struct CACHE_CRYPTO_ENV cacheCryptoEnv[SET_NUM];
     //struct CACHE_CRYPTO_ENV cacheCryptoEnv;
@@ -843,30 +872,94 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
     printf("Interrupt enable?:\t");
     printf(are_interrupts_enabled() ? "Yes\n" : "No\n");
-
+*/
 
     // allocating memory for env
-    struct ENV *env;
-    env = (struct ENV*)malloc(sizeof (struct ENV));
+    //struct ENV *env;
+    //struct ENV env;
+    //env = (struct ENV*)malloc(sizeof (struct ENV));
+    //env->structCacheCryptoEnv=(struct CACHE_CRYPTO_ENV*) malloc(sizeof (struct CACHE_CRYPTO_ENV));
+    //env->structCacheCryptoEnv=&cacheCryptoEnv;
+
+    env.structCacheCryptoEnv=&cacheCryptoEnv;
+
+    // fill up the cacheCryptoEnv with values
+    memcpy(cacheCryptoEnv.masterKey,mkt,sizeof (mkt));
+    printf("Address of the master Key %x\n", &(cacheCryptoEnv.masterKey));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     // fillup L1d cache
     fill_L1dcache(&env);
 
+    // address of the cacheStack
+    printf("CacheStack address %x\n", &env.structCacheCryptoEnv->cachestack);
+
 
     // coping both encrypted message & RSA private key into env
-    memcpy(env->encMsg, from, 1000);
-    memcpy(env->encPrivateKey,private_encrypt,KEY_BUFFER_SIZE);
+    //memcpy(&env->encMsg, from, 1000);
+    memcpy(env.encMsg, from, 1000);
+    //memcpy(&env->encPrivateKey,private_encrypt,KEY_BUFFER_SIZE);
+    memcpy(env.encPrivateKey,private_encrypt,KEY_BUFFER_SIZE);
 
     // checking decryption function parameter
     //result =decryptFunction(from, private_encrypt);
-    result =decryptFunction(env->encMsg, env->encPrivateKey);
+    //result =decryptFunction(env->encMsg, env->encPrivateKey);
+    result =decryptFunction(&env.encMsg, &env.encPrivateKey);
     printf("after operation, result is %d\n",result);
 
 
 
 
-
+/*
 
     // restore Interrupts
     asm volatile("sti": : :"memory");
@@ -879,7 +972,7 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
         exit(0);
     }
 
-
+*/
 
     // Without it code cause segfault. Will look at it later
     exit(0);
