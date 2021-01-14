@@ -138,7 +138,7 @@ unsigned char mkt[16] = { \
 
 
 // Secure CRYPTO structure
-struct CACHE_CRYPTO_ENV{
+static struct CACHE_CRYPTO_ENV{
     unsigned char masterKey[128/8]; // for 128 bit master key
     aes_context aes; // initialize AES
     rsa_context rsa; // initialize RSA
@@ -375,9 +375,9 @@ bool get_memory_type(void){
 int fill_L1dcache(struct ENV *env){
     printf("fill_L1D cache: env size is %ld\n", sizeof *(env->structCacheCryptoEnv));
 
-    // address of structCacheCryptoEnv->masterKey. Should be same as original cacheCryptoEnv->masterKey
     printf("Inside fill_L1D cache: master Keys address : 0x%8.8X\n", &(env->structCacheCryptoEnv->masterKey));
 
+    // address of structCacheCryptoEnv->masterKey. Should be same as original cacheCryptoEnv->masterKey
 
     printf("inside fill_L1d: cache master key, first Byte (0) is : 0x%8.8X\n",env->structCacheCryptoEnv->masterKey[0]);
     printf("Original master key: %x\n",mkt[0]);
@@ -442,12 +442,15 @@ int myrand( void *rng_state, unsigned char *output, size_t len )
     return( 0 );
 }
 
+// original decryption function
 int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
 
     // Need to populate cacheCrptoEnv here?
 
 
     printf("Inside Decryption function, current CPU set, current cpu is  = %d\n", sched_getcpu());
+
+
     //do_someWork(1,2);
     //printf("decryptFunction\n");
     int j, result=-1;
@@ -480,7 +483,7 @@ int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
     //int N=15;
     int len=strlen(private_decrypt);
     int N= len-986; // 986 is the buffer size for 1024-bit key
-    //printf ("N is : %d\n", N);
+    printf ("N is : %d\n", N);
 
 
     private_decrypt[len-N]='\0';
@@ -509,27 +512,26 @@ int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
 
     // read decrypted key from buffer into rsa_context
     if (x509parse_key(&rsa_polar,private_decrypt,strlen(private_decrypt), "1234",4)!=0){
-        //printf("Error code\n");
+        printf("X509parse failed\n");
         exit(0);
     }else{
         //printf("Reading decrypted private key from buffer into rsa_context is success\n");
     }
 
 
-
     if( rsa_check_pubkey(  &rsa_polar ) != 0 ||rsa_check_privkey( &rsa_polar ) != 0 ) {
-        //printf( "decryption : Public/Private key error! \n" );
+        printf( "decryption : Public/Private key error! \n" );
         exit(0);
     }else{
         //printf("decryption :Key reading success\n");
     }
 
     if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 ) {
-        //printf( "Decryption failed! \n" );
+        printf( "Decryption failed! \n" );
         //printf("Error code,  %d\n",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
         exit(0);
     }else {
-        //printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
+        printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
     }
 
     return 1;
@@ -538,8 +540,84 @@ int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
 }
 
 
-
 // END: all the functions for RSA operation
+
+
+// define stackswitch function
+//bool stackswitch(void *para, void *stack_decryption, unsigned char *stackBottom){
+//extern stack_switch();
+
+void stackswitch( struct ENV *env, int (*decryptFunction)(unsigned char, unsigned char), unsigned char *stackBottom){
+
+    printf("Inside stack_switch function\n");
+    printf("Stack bottom %x\n", stackBottom);
+
+
+    //calling the actual decryption function
+    //(*decryptFunction)(env->encMsg,env->encPrivateKey);
+
+
+    //creating the original stack switch function
+    u64 base, rsp, base1, rsp1;
+    asm volatile(
+
+                // store original rsp into the red-zone
+                //"mov %%rbp, %0 \t\n"
+                "mov %%rsp, %1 \t\n"
+
+                //prologue
+                "push %%rbp \t\n"
+                //"mov %%rbp, %2 \t\n"
+
+                "mov %%rsp, %%rbp \t\n" // can't modify rbp without clobber register.
+                //"mov %%rbp, %3 \t\n"
+
+                // create space for stackswitch function parameter. rax now point to the stack bottom
+                "mov 32(%%rbp), %%rax\t\n"
+
+                //save system rbp on the new stack
+                "movq %%rbp, (%%rax)\t\n"
+
+                //save system rsp on the new stack
+                "mov %%rbp, -8(%%rax)\t\n"
+
+                //rbx now point to the old rbp
+                "mov %%rbp, %%rbx\t\n"
+
+                // Create new stack frame
+                "movq %%rax, %%rbp\t\n"
+                "movq %%rax, %%rsp\t\n"
+                "subq $8, %%rsp\t\n"
+
+                // create parameter for decryption function
+                "pushq 16(%%rbx)\t\n"
+
+                //call decryption function
+                "callq 24(%%rbx)\t\n"
+
+
+                // returning to the original stack
+                "mov %%rbp, %%rbx\t\n"
+                "mov (%%rbx), %%rsp\t\n"
+                "mov (%%rbx), %%rsp\t\n"
+
+                "leave\t\n"
+                "ret \t\n"
+
+
+                //"pop %%rbp"
+                :"=r"(base), "=r"(rsp),"=r"(base1), "=r"(rsp1)
+                :
+                :"rax","rbx","rbp"
+                );
+//    printf("Before: Base register %x\n", base);
+//    printf("Before: stack pointer register %x\n", rsp);
+//    printf("After: (Should be same as previous )Base register %x\n", base1);
+//    printf("After: (Actually %rsp-8)Base register %x\n", rsp1);
+
+    }
+
+
 
 /* Declared already in ossl_typ.h */
 /* typedef struct rsa_st RSA; */
@@ -785,6 +863,9 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
 // ************************************ Start Calling decryption function here ******************************//
 
+
+/*************************************** Start: Disabling Dune ***********************/
+
 /*
 
     //struct CACHE_CRYPTO_ENV cacheCryptoEnv[SET_NUM];
@@ -802,6 +883,8 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     }
     printf("hello: now printing from dune mode\n");
 
+
+///*
     // printing the coreID
     printf(" First: current cpu is  = %d\n", sched_getcpu());
 
@@ -872,7 +955,13 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
     printf("Interrupt enable?:\t");
     printf(are_interrupts_enabled() ? "Yes\n" : "No\n");
+
 */
+
+//*/
+
+/*************************************** Ends: Disabling Dune ***********************/
+
 
     // allocating memory for env
     //struct ENV *env;
@@ -889,59 +978,13 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     // fillup L1d cache
     fill_L1dcache(&env);
 
     // address of the cacheStack
     printf("CacheStack address %x\n", &env.structCacheCryptoEnv->cachestack);
+
+
 
 
     // coping both encrypted message & RSA private key into env
@@ -950,11 +993,24 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     //memcpy(&env->encPrivateKey,private_encrypt,KEY_BUFFER_SIZE);
     memcpy(env.encPrivateKey,private_encrypt,KEY_BUFFER_SIZE);
 
+
+    printf("Enc msg is %s\n", env.encMsg);
+    printf("Enc private key is %s\n", env.encPrivateKey);
+    printf("stack bottom %x:\n", &env.structCacheCryptoEnv->cachestack+CACHE_STACK_SIZE-8);
+
+    //calling stack switch function
+    stackswitch(&env, decryptFunction, &env.structCacheCryptoEnv->cachestack+CACHE_STACK_SIZE-8);
+
+
+
+
     // checking decryption function parameter
     //result =decryptFunction(from, private_encrypt);
     //result =decryptFunction(env->encMsg, env->encPrivateKey);
-    result =decryptFunction(&env.encMsg, &env.encPrivateKey);
-    printf("after operation, result is %d\n",result);
+
+    //working
+    //result =decryptFunction(&env.encMsg, &env.encPrivateKey);
+    //printf("after operation, result is %d\n",result);
 
 
 

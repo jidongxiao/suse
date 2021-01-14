@@ -13,7 +13,7 @@ rsa-engine: rsa/rsa.c rsa/bignum.c rsa/aes.c rsa/x509parse.c rsa/pem.c
 	gcc -fPIC -o rsa/sha2.o -c rsa/sha2.c
 	gcc -fPIC -o rsa/dhm.o -c rsa/dhm.c
 	gcc -fPIC -o rsa/base64.o -c rsa/base64.c
-	gcc -mrtm -fPIC -c rsa-engine.c
+	gcc -mrtm -fPIC -c -fomit-frame-pointer rsa-engine.c
 	gcc -shared -o librsa_engine.so -L./libdune rsa-engine.o rsa/rsa.o rsa/bignum.o rsa/aes.o rsa/x509parse.o rsa/pem.o rsa/des.o rsa/asn1parse.o rsa/md5.o rsa/certs.o rsa/sha1.o rsa/dhm.o rsa/base64.o rsa/sha4.o rsa/sha2.o -Wl,-Bstatic -ldune -Wl,-Bdynamic -lcrypto
 	mv librsa_engine.so rsa-engine-new.so
 	sudo cp rsa-engine-new.so /opt/openssl/lib/engines-1.1/
