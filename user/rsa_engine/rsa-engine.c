@@ -155,14 +155,10 @@ static struct CACHE_CRYPTO_ENV{
 //struct CACHE_CRYPTO_ENV cacheCryptoEnv;
 
 
+/*
+
 // Following structure contain the parameter for decryption().
 struct ENV{
-    /*
-    unsigned char *encMsg[1000]; // encrypted msg
-    unsigned char *encPrivateKey[KEY_BUFFER_SIZE];
-    struct CACHE_CRYPTO_ENV *structCacheCryptoEnv;
-    unsigned char *out[1000]; // decrypted plaintext.
-     */
     unsigned char encMsg[1000]; // encrypted msg
     unsigned char encPrivateKey[KEY_BUFFER_SIZE];
     struct CACHE_CRYPTO_ENV *structCacheCryptoEnv;
@@ -171,6 +167,7 @@ struct ENV{
 
 }env;
 
+*/
 
  // Check Interrupts status
  // Returns a true boolean value if irq are enabled for the CPU
@@ -372,14 +369,15 @@ bool get_memory_type(void){
 
 
 
-int fill_L1dcache(struct ENV *env){
-    printf("fill_L1D cache: env size is %ld\n", sizeof *(env->structCacheCryptoEnv));
+//int fill_L1dcache(struct ENV *env){
+int fill_L1dcache(struct CACHE_CRYPTO_ENV *env){
+    printf("fill_L1D cache: env size is %ld\n", sizeof *(env));
 
-    printf("Inside fill_L1D cache: master Keys address : 0x%8.8X\n", &(env->structCacheCryptoEnv->masterKey));
+    printf("Inside fill_L1D cache: master Keys address : 0x%8.8X\n", env->masterKey);
 
     // address of structCacheCryptoEnv->masterKey. Should be same as original cacheCryptoEnv->masterKey
 
-    printf("inside fill_L1d: cache master key, first Byte (0) is : 0x%8.8X\n",env->structCacheCryptoEnv->masterKey[0]);
+    printf("inside fill_L1d: cache master key, first Byte (0) is : 0x%8.8X\n",env->masterKey[0]);
     printf("Original master key: %x\n",mkt[0]);
 
 
@@ -389,9 +387,10 @@ int fill_L1dcache(struct ENV *env){
 
     // how to put into cache
     // each cacheline load 64 byte of data at a time
-    unsigned char *p, *address,*byte_value;
+    unsigned char *p, *address,*byte_value, *byte_value2;
 
-    int forEachCacheLine = sizeof *(env->structCacheCryptoEnv);
+    //int forEachCacheLine = sizeof *(env->structCacheCryptoEnv);
+    int forEachCacheLine = sizeof *(env);
     printf("size of forEachCacheLine is %d\n", forEachCacheLine);
 
     for (int i = 0; i<forEachCacheLine ; i+=64) {
@@ -414,9 +413,12 @@ int fill_L1dcache(struct ENV *env){
         printf("Byte %d \n",i);
 
         // read 1 byte from the cacheCryptoEnv
-        address=((unsigned char *)env->structCacheCryptoEnv);
+        //address=((unsigned char *)env->structCacheCryptoEnv);
+        address=((unsigned char *)env);
         byte_value=*(address+i);
+        byte_value2=*(address+i+1);
         printf("Read from %p byte is %hhx\n", address+i, byte_value);
+        printf("Read second value from %p byte is %hhx\n", address+i+1, byte_value2);
 
         // write 1 byte
         *(address+i)=byte_value;
@@ -442,11 +444,17 @@ int myrand( void *rng_state, unsigned char *output, size_t len )
     return( 0 );
 }
 
-// original decryption function
-int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
+
+// test decryption function
+int test_decryptFunction (struct CACHE_CRYPTO_ENV *env){
 
     // Need to populate cacheCrptoEnv here?
+    unsigned char *from=env->in;
+    unsigned char *private_encrypt=env->out;
 
+
+    printf("Inside Decryption function, msg is : %s\n", from);
+    printf("Inside Decryption function, Key is : %s\n", private_encrypt);
 
     printf("Inside Decryption function, current CPU set, current cpu is  = %d\n", sched_getcpu());
 
@@ -481,15 +489,16 @@ int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
     // for 1024 bit keys, removing the extra 10 padding
     //int N=11;
     //int N=15;
-    int len=strlen(private_decrypt);
+    //int len=strlen(private_decrypt);
+    size_t len=strlen(private_decrypt);
     int N= len-986; // 986 is the buffer size for 1024-bit key
     printf ("N is : %d\n", N);
 
 
     private_decrypt[len-N]='\0';
-    //printf("len is %d\n", len);
+    printf("len is %d\n", len);
 
-    //printf("Decrypted private key is --> \n %s \n", private_decrypt);
+    printf("Decrypted private key is --> \n %s \n", private_decrypt);
 
 
     // Printing here shows extra something after the key
@@ -515,7 +524,7 @@ int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
         printf("X509parse failed\n");
         exit(0);
     }else{
-        //printf("Reading decrypted private key from buffer into rsa_context is success\n");
+        printf("Reading decrypted private key from buffer into rsa_context is success\n");
     }
 
 
@@ -523,12 +532,118 @@ int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
         printf( "decryption : Public/Private key error! \n" );
         exit(0);
     }else{
-        //printf("decryption :Key reading success\n");
+        printf("decryption :Key reading success\n");
     }
 
     if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 ) {
         printf( "Decryption failed! \n" );
-        //printf("Error code,  %d\n",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
+        printf("Error code,  %d\n",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
+        exit(0);
+    }else {
+        printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
+    }
+
+    return 1;
+    //exit(0);
+
+}
+
+
+
+// original decryption function
+int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
+//int decryptFunction (struct CACHE_CRYPTO_ENV *env){
+
+    // Need to populate cacheCrptoEnv here?
+    //unsigned char *from=env->in;
+    //unsigned char *private_encrypt=env->out;
+
+
+    printf("Inside Decryption function, msg is : %s\n", from);
+    printf("Inside Decryption function, Key is : %s\n", private_encrypt);
+
+    printf("Inside Decryption function, current CPU set, current cpu is  = %d\n", sched_getcpu());
+
+
+    //do_someWork(1,2);
+    //printf("decryptFunction\n");
+    int j, result=-1;
+    //int N=7;
+    aes_context aes;
+    rsa_context rsa_polar;
+
+    //rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
+
+
+//    int len_cipher=strlen(from);
+//    unsigned char decrypt_plaintext[len_cipher]; // len cipher is causing failure, need to find a size in Byte
+
+    unsigned char private_decrypt[KEY_BUFFER_SIZE];
+
+    // performing decryption on encrypted keys, working
+    aes_setkey_dec(&aes,mkt,AES_KEY_SIZE_BITS);
+    for(j=0;j<KEY_BUFFER_SIZE/AES_BLOCK_SIZE;++j){
+        aes_crypt_ecb(&aes,AES_DECRYPT, private_encrypt + AES_BLOCK_SIZE*j,private_decrypt+AES_BLOCK_SIZE*j);
+    }
+
+    // For 1024-bit key, total buffer size is 986 -fixed.
+    // After aes-decryption, total decryption lenght will be different
+    // But need to make private_decrypt[] size same as 986
+    // So, I will choose N, dynamically.
+    // N = strlen(private_decrypt) - 986
+
+    // for 1024 bit keys, removing the extra 10 padding
+    //int N=11;
+    //int N=15;
+    //int len=strlen(private_decrypt);
+    size_t len=strlen(private_decrypt);
+    int N= len-986; // 986 is the buffer size for 1024-bit key
+    printf ("N is : %d\n", N);
+
+
+    private_decrypt[len-N]='\0';
+    printf("len is %d\n", len);
+
+    printf("Decrypted private key is --> \n %s \n", private_decrypt);
+
+
+    // Printing here shows extra something after the key
+
+
+    //reading private.pem and perform decryption
+    rsa_init( &rsa_polar, RSA_PKCS_V15, 0 );
+
+
+    int len_cipher=strlen(from);
+
+    //unsigned char decrypt_plaintext[len_cipher];
+    /*
+     *
+     * Need to fix this
+     *
+     * */
+    unsigned char decrypt_plaintext[1000];
+
+
+    // read decrypted key from buffer into rsa_context
+    if (x509parse_key(&rsa_polar,private_decrypt,strlen(private_decrypt), "1234",4)!=0){
+        printf("X509parse failed\n");
+        exit(0);
+    }else{
+        printf("Reading decrypted private key from buffer into rsa_context is success\n");
+    }
+
+
+    if( rsa_check_pubkey(  &rsa_polar ) != 0 ||rsa_check_privkey( &rsa_polar ) != 0 ) {
+        printf( "decryption : Public/Private key error! \n" );
+        exit(0);
+    }else{
+        printf("decryption :Key reading success\n");
+    }
+
+    if( rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ) != 0 ) {
+        printf( "Decryption failed! \n" );
+        printf("Error code,  %d\n",rsa_pkcs1_decrypt( &rsa_polar, &myrand, NULL, RSA_PRIVATE, &len, from, decrypt_plaintext, sizeof(decrypt_plaintext) ));
         exit(0);
     }else {
         printf("decryption: Decrypted plaintext-----> %s\n", decrypt_plaintext);
@@ -547,10 +662,15 @@ int decryptFunction (unsigned char *from, unsigned char *private_encrypt){
 //bool stackswitch(void *para, void *stack_decryption, unsigned char *stackBottom){
 //extern stack_switch();
 
-void stackswitch( struct ENV *env, int (*decryptFunction)(unsigned char, unsigned char), unsigned char *stackBottom){
+//void stackswitch( struct ENV *env, int (*decryptFunction)(unsigned char, unsigned char), unsigned char *stackBottom){
+void stackswitch( void *env, int (*f)(struct CACHE_CRYPTO_ENV *), unsigned char *stackBottom){
 
     printf("Inside stack_switch function\n");
     printf("Stack bottom %x\n", stackBottom);
+    printf("Address of ENV %x\n", env);
+
+    printf("Inside stackswitch, msg is:  %s\n", ((struct CACHE_CRYPTO_ENV *)env)->in);
+
 
 
     //calling the actual decryption function
@@ -558,64 +678,170 @@ void stackswitch( struct ENV *env, int (*decryptFunction)(unsigned char, unsigne
 
 
     //creating the original stack switch function
-    u64 base, rsp, base1, rsp1;
+    u_int64_t base, rsp, base1, rsp1;
     asm volatile(
 
-                // store original rsp into the red-zone
-                //"mov %%rbp, %0 \t\n"
-                "mov %%rsp, %1 \t\n"
+    // store original rsp into the red-zone
+    //"mov %%rbp, %0 \t\n"
+    //"movq %%rsp, %1 \t\n"
 
-                //prologue
-                "push %%rbp \t\n"
-                //"mov %%rbp, %2 \t\n"
+    //prologue
+    "pushq %%rbp \t\n"
+    //"mov %%rbp, %2 \t\n"
 
-                "mov %%rsp, %%rbp \t\n" // can't modify rbp without clobber register.
-                //"mov %%rbp, %3 \t\n"
+    "movq %%rsp, %%rbp \t\n" // can't modify rbp without clobber register.
+    //"mov %%rbp, %3 \t\n"
 
-                // create space for stackswitch function parameter. rax now point to the stack bottom
-                "mov 32(%%rbp), %%rax\t\n"
+    // create space for stackswitch function parameter. rax now point to the stack bottom
+    // ok, So, 16(%%rbp) --> point to the *stackbottom. When we move 16(%%rbp)--> rax, rax is now point to stack bottom.
+    //"mov 32(%%rbp), %%rax\t\n"
+    "movq 16(%%rbp), %%rax\t\n"
 
-                //save system rbp on the new stack
-                "movq %%rbp, (%%rax)\t\n"
+    //save system rbp on the new stack.
+    // creating new stack. Setting rbp.
+    "movq %%rbp, (%%rax)\t\n"
 
-                //save system rsp on the new stack
-                "mov %%rbp, -8(%%rax)\t\n"
+    //save system rsp on the new stack
+    // setting rsp to the new stack
+    "movq %%rbp, -8(%%rax)\t\n"
 
-                //rbx now point to the old rbp
-                "mov %%rbp, %%rbx\t\n"
+    //rbx now point to the old rbp
+    // rbx --> point to the original stack rbp
+    "movq %%rbp, %%rbx\t\n"
 
-                // Create new stack frame
-                "movq %%rax, %%rbp\t\n"
-                "movq %%rax, %%rsp\t\n"
-                "subq $8, %%rsp\t\n"
+    // Create new stack frame
+    "movq %%rax, %%rbp\t\n"
+    "movq %%rax, %%rsp\t\n"
 
-                // create parameter for decryption function
-                "pushq 16(%%rbx)\t\n"
+    // pointing to rsp, from previous line, movq %%rbp, -8(%%rax)
+    //"sub $8, %%rsp\t\n"
+    "subq $8, %%rsp\t\n"
 
-                //call decryption function
-                "callq 24(%%rbx)\t\n"
+    // create parameter for decryption function
+    //"pushq 16(%%rbx)\t\n"
+    //"pushq 32(%%rbx)\t\n"
+    "movq 32(%%rbx), %%rdx\t\n"
+    //"movq 24(%%rbx), %%rax\t\n" // Extra, if works, need to save rax and pop later
+    "movq %%rdx, %%rdi\t\n"
+
+    //call decryption function
+    //"call 24(%%rbx)\t\n"
+    "call 24(%%rbx)\t\n"
+    //"call %%rax\t\n"
 
 
-                // returning to the original stack
-                "mov %%rbp, %%rbx\t\n"
-                "mov (%%rbx), %%rsp\t\n"
-                "mov (%%rbx), %%rsp\t\n"
 
-                "leave\t\n"
-                "ret \t\n"
+    // returning to the original stack
+    "movq %%rbp, %%rbx\t\n"
+    "movq (%%rbx), %%rbp\t\n"
+    "movq -8(%%rbx), %%rsp\t\n"
+
+    "leave\t\n"
+    "ret \t\n"
 
 
-                //"pop %%rbp"
-                :"=r"(base), "=r"(rsp),"=r"(base1), "=r"(rsp1)
-                :
-                :"rax","rbx","rbp"
-                );
-//    printf("Before: Base register %x\n", base);
-//    printf("Before: stack pointer register %x\n", rsp);
-//    printf("After: (Should be same as previous )Base register %x\n", base1);
-//    printf("After: (Actually %rsp-8)Base register %x\n", rsp1);
+    //"pop %%rbp"
+    :"=r"(base), "=r"(rsp),"=r"(base1), "=r"(rsp1)
+    :
+    :"rax","rbx","rbp"
+    );
+
+    printf("Before: Base register %x\n", base);
+    printf("Before: stack pointer register %x\n", rsp);
+    printf("After: (Should be same as previous )Base register %x\n", base1);
+    printf("After: (Actually %rsp-8)Base register %x\n", rsp1);
 
     }
+
+
+
+// test stackswitch function
+void func3( void *test_func3, int (*f)(struct CACHE_CRYPTO_ENV *), unsigned char *stackbottom){
+    printf("Inside func3, msg is:  %s\n", ((struct CACHE_CRYPTO_ENV *)test_func3)->in);
+
+    // calling function
+    //(*f)(test_func3);
+
+
+///*
+    // creating a stack
+
+    //creating the original stack switch function
+    u_int64_t base, rsp, base1, rsp1;
+    asm volatile(
+
+    // store original rsp into the red-zone
+    //"mov %%rbp, %0 \t\n"
+    //"movq %%rsp, %1 \t\n"
+
+    //prologue
+    "pushq %%rbp \t\n"
+    //"mov %%rbp, %2 \t\n"
+
+    "movq %%rsp, %%rbp \t\n" // can't modify rbp without clobber register.
+    //"mov %%rbp, %3 \t\n"
+
+    // create space for stackswitch function parameter. rax now point to the stack bottom
+    // ok, So, 16(%%rbp) --> point to the *stackbottom. When we move 16(%%rbp)--> rax, rax is now point to stack bottom.
+    //"mov 32(%%rbp), %%rax\t\n"
+    "movq 16(%%rbp), %%rax\t\n"
+
+    //save system rbp on the new stack.
+    // creating new stack. Setting rbp.
+    "movq %%rbp, (%%rax)\t\n"
+
+    //save system rsp on the new stack
+    // setting rsp to the new stack
+    "movq %%rbp, -8(%%rax)\t\n"
+
+    //rbx now point to the old rbp
+    // rbx --> point to the original stack rbp
+    "movq %%rbp, %%rbx\t\n"
+
+    // Create new stack frame
+    "movq %%rax, %%rbp\t\n"
+    "movq %%rax, %%rsp\t\n"
+
+    // pointing to rsp, from previous line, movq %%rbp, -8(%%rax)
+    //"sub $8, %%rsp\t\n"
+    "subq $8, %%rsp\t\n"
+
+    // create parameter for decryption function
+    //"pushq 16(%%rbx)\t\n"
+    //"pushq 32(%%rbx)\t\n"
+    "movq 32(%%rbx), %%rdx\t\n"
+    //"movq 24(%%rbx), %%rax\t\n" // Extra, if works, need to save rax and pop later
+    "movq %%rdx, %%rdi\t\n"
+
+    //call decryption function
+    //"call 24(%%rbx)\t\n"
+    "call 24(%%rbx)\t\n"
+    //"call %%rax\t\n"
+
+
+
+    // returning to the original stack
+    "movq %%rbp, %%rbx\t\n"
+    "movq (%%rbx), %%rbp\t\n"
+    "movq -8(%%rbx), %%rsp\t\n"
+
+    "leave\t\n"
+    "ret \t\n"
+
+
+    //"pop %%rbp"
+    :"=r"(base), "=r"(rsp),"=r"(base1), "=r"(rsp1)
+    :
+    :"rax","rbx","rbp"
+    );
+    printf("Before: Base register %x\n", base);
+    //printf("Before: stack pointer register %x\n", rsp);
+    printf("After: (Should be same as previous )Base register %x\n", base1);
+    printf("After: (Actually %rsp-8)Base register %x\n", rsp1);
+
+//*/
+
+}
 
 
 
@@ -812,7 +1038,7 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
         }
         fclose (fp);
     }
-    //printf("buffer is \n %s\n", buffer);
+    printf("Key in buffer is \n %s\n", buffer);
     //printf("Size of Buffer is %d\n", strlen(buffer));
 
     // here total message length is strlen(buffer)/AES_BLOCK_SIZE, or 986/16 =61.625
@@ -962,53 +1188,41 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
 /*************************************** Ends: Disabling Dune ***********************/
 
+    // initializing a env structure
+    struct CACHE_CRYPTO_ENV env;
 
-    // allocating memory for env
-    //struct ENV *env;
-    //struct ENV env;
-    //env = (struct ENV*)malloc(sizeof (struct ENV));
-    //env->structCacheCryptoEnv=(struct CACHE_CRYPTO_ENV*) malloc(sizeof (struct CACHE_CRYPTO_ENV));
-    //env->structCacheCryptoEnv=&cacheCryptoEnv;
-
-    env.structCacheCryptoEnv=&cacheCryptoEnv;
-
-    // fill up the cacheCryptoEnv with values
-    memcpy(cacheCryptoEnv.masterKey,mkt,sizeof (mkt));
-    printf("Address of the master Key %x\n", &(cacheCryptoEnv.masterKey));
-
+    //memcpy(env.masterKey, mkt, sizeof(mkt));
+    //printf("Address of the master Key %x\n", &env.masterKey);
 
 
     // fillup L1d cache
-    fill_L1dcache(&env);
-
-    // address of the cacheStack
-    printf("CacheStack address %x\n", &env.structCacheCryptoEnv->cachestack);
+    //fill_L1dcache(&env);
 
 
+    //coping actual enc_messege(from) & encrypted key (private_encrypt)
+    memcpy(env.in, from, sizeof(from));
+    memcpy(env.out, private_encrypt, sizeof(private_encrypt));
 
 
-    // coping both encrypted message & RSA private key into env
-    //memcpy(&env->encMsg, from, 1000);
-    memcpy(env.encMsg, from, 1000);
-    //memcpy(&env->encPrivateKey,private_encrypt,KEY_BUFFER_SIZE);
-    memcpy(env.encPrivateKey,private_encrypt,KEY_BUFFER_SIZE);
+    printf("Enc msg is--> %s\n", env.in);
+    printf("Enc private key is --> %s\n", env.out);
 
 
-    printf("Enc msg is %s\n", env.encMsg);
-    printf("Enc private key is %s\n", env.encPrivateKey);
-    printf("stack bottom %x:\n", &env.structCacheCryptoEnv->cachestack+CACHE_STACK_SIZE-8);
-
-    //calling stack switch function
-    stackswitch(&env, decryptFunction, &env.structCacheCryptoEnv->cachestack+CACHE_STACK_SIZE-8);
+    //printf("stack bottom %x:\n", env.structCacheCryptoEnv->cachestack+CACHE_STACK_SIZE-8);
 
 
+    // all of the following is working
+    // Currently showing decryption failed. My guess, it is because I cant assign the correct input value
+    // Also Need to fix return to original stack, after decryption
+    // but decryption works fine. because in bottom commented code, it is working
+    stackswitch(&env, test_decryptFunction, env.cachestack+CACHE_STACK_SIZE-8);
+    //func3(&env,test_decryptFunction, env.cachestack+CACHE_STACK_SIZE-8);
 
 
-    // checking decryption function parameter
+
+
+    //working for original decryption function
     //result =decryptFunction(from, private_encrypt);
-    //result =decryptFunction(env->encMsg, env->encPrivateKey);
-
-    //working
     //result =decryptFunction(&env.encMsg, &env.encPrivateKey);
     //printf("after operation, result is %d\n",result);
 
