@@ -1,0 +1,1 @@
+cmd_/home/mzq/Desktop/invd/isoToken.ko := ld -r -m elf_i386 -T /usr/src/linux-3.12.6/scripts/module-common.lds --build-id  -o /home/mzq/Desktop/invd/isoToken.ko /home/mzq/Desktop/invd/isoToken.o /home/mzq/Desktop/invd/isoToken.mod.o

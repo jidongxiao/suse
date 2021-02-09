@@ -1,0 +1,68 @@
+/root/CopkerModule/invd/cacheCryptoMain.c:371:3: warning: "/*" within comment [-Wcomment]
+/root/CopkerModule/invd/cacheCryptoMain.c:86:13: warning: function declaration isn’t a prototype [-Wstrict-prototypes]
+/root/CopkerModule/invd/cacheCryptoMain.c: In function ‘tresor_epilog’:
+/root/CopkerModule/invd/cacheCryptoMain.c:278:2: error: unknown type name ‘cpumask’
+/root/CopkerModule/invd/cacheCryptoMain.c:281:2: warning: passing argument 1 of ‘cpumask_clear’ from incompatible pointer type [enabled by default]
+In file included from /usr/src/kernels/3.6.10-4.fc18.i686.PAE/arch/x86/include/asm/cpumask.h:4:0,
+                 from /usr/src/kernels/3.6.10-4.fc18.i686.PAE/arch/x86/include/asm/msr.h:18,
+                 from /usr/src/kernels/3.6.10-4.fc18.i686.PAE/arch/x86/include/asm/processor.h:20,
+                 from /usr/src/kernels/3.6.10-4.fc18.i686.PAE/arch/x86/include/asm/atomic.h:6,
+                 from include/linux/atomic.h:4,
+                 from include/linux/crypto.h:20,
+                 from /root/CopkerModule/invd/cacheCryptoMain.c:1:
+include/linux/cpumask.h:323:60: note: expected ‘struct cpumask *’ but argument is of type ‘int *’
+/root/CopkerModule/invd/cacheCryptoMain.c:300:2: warning: passing argument 2 of ‘cpumask_set_cpu’ from incompatible pointer type [enabled by default]
+In file included from /usr/src/kernels/3.6.10-4.fc18.i686.PAE/arch/x86/include/asm/cpumask.h:4:0,
+                 from /usr/src/kernels/3.6.10-4.fc18.i686.PAE/arch/x86/include/asm/msr.h:18,
+                 from /usr/src/kernels/3.6.10-4.fc18.i686.PAE/arch/x86/include/asm/processor.h:20,
+                 from /usr/src/kernels/3.6.10-4.fc18.i686.PAE/arch/x86/include/asm/atomic.h:6,
+                 from include/linux/atomic.h:4,
+                 from include/linux/crypto.h:20,
+                 from /root/CopkerModule/invd/cacheCryptoMain.c:1:
+include/linux/cpumask.h:255:60: note: expected ‘struct cpumask *’ but argument is of type ‘int *’
+/root/CopkerModule/invd/cacheCryptoMain.c:301:2: warning: passing argument 1 of ‘smp_call_function_many’ from incompatible pointer type [enabled by default]
+In file included from include/linux/topology.h:33:0,
+                 from include/linux/gfp.h:7,
+                 from include/linux/slab.h:12,
+                 from include/linux/crypto.h:24,
+                 from /root/CopkerModule/invd/cacheCryptoMain.c:1:
+include/linux/smp.h:75:6: note: expected ‘const struct cpumask *’ but argument is of type ‘int *’
+/root/CopkerModule/invd/cacheCryptoMain.c: In function ‘gl_set_mtrr’:
+/root/CopkerModule/invd/cacheCryptoMain.c:618:2: warning: passing argument 1 of ‘stop_machine’ from incompatible pointer type [enabled by default]
+In file included from /root/CopkerModule/invd/cacheCryptoMain.c:32:0:
+include/linux/stop_machine.h:114:5: note: expected ‘int (*)(void *)’ but argument is of type ‘int (*)(struct mtrr_data *)’
+/root/CopkerModule/invd/cacheCryptoMain.c: In function ‘init_isoToken’:
+/root/CopkerModule/invd/cacheCryptoMain.c:654:21: warning: unused variable ‘mtrr_r’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:653:15: warning: unused variable ‘ofs’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c: In function ‘getPub’:
+/root/CopkerModule/invd/cacheCryptoMain.c:908:8: warning: unused variable ‘j’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c: In function ‘checkCache’:
+/root/CopkerModule/invd/cacheCryptoMain.c:928:6: warning: unused variable ‘total’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c: In function ‘isoToken_ioctl’:
+/root/CopkerModule/invd/cacheCryptoMain.c:1023:14: warning: unused variable ‘m_u’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1097:5: warning: passing argument 1 of ‘fillL1’ from incompatible pointer type [enabled by default]
+/root/CopkerModule/invd/cacheCryptoMain.c:954:6: note: expected ‘unsigned char *’ but argument is of type ‘struct ProtectedMem *’
+/root/CopkerModule/invd/cacheCryptoMain.c:1099:5: warning: passing argument 1 of ‘fillL1’ from incompatible pointer type [enabled by default]
+/root/CopkerModule/invd/cacheCryptoMain.c:954:6: note: expected ‘unsigned char *’ but argument is of type ‘struct ProtectedMem *’
+/root/CopkerModule/invd/cacheCryptoMain.c:1064:10: warning: unused variable ‘labelsmall’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:70: warning: unused variable ‘line2’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:64: warning: unused variable ‘line1’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:59: warning: unused variable ‘line’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:54: warning: unused variable ‘max2’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:49: warning: unused variable ‘max1’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:45: warning: unused variable ‘max’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:40: warning: unused variable ‘avg2’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:35: warning: unused variable ‘avg1’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:31: warning: unused variable ‘avg’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:23: warning: unused variable ‘r’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:21: warning: unused variable ‘i’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1053:15: warning: unused variable ‘index’ [-Wunused-variable]
+/root/CopkerModule/invd/cacheCryptoMain.c:1167:2: warning: label ‘irqerr’ defined but not used [-Wunused-label]
+/root/CopkerModule/invd/cacheCryptoMain.c:1084:3: warning: label ‘again’ defined but not used [-Wunused-label]
+/root/CopkerModule/invd/cacheCryptoMain.c: At top level:
+/root/CopkerModule/invd/cacheCryptoMain.c:612:13: warning: ‘gl_set_mtrr’ defined but not used [-Wunused-function]
+/root/CopkerModule/invd/cacheCryptoMain.c: In function ‘isoToken_ioctl’:
+/root/CopkerModule/invd/cacheCryptoMain.c:1174:17: warning: ignoring return value of ‘copy_to_user’, declared with attribute warn_unused_result [-Wunused-result]
+make[2]: *** [/root/CopkerModule/invd/cacheCryptoMain.o] Error 1
+make[1]: *** [_module_/root/CopkerModule/invd] Error 2
+make: *** [all] Error 2
