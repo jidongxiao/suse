@@ -1842,6 +1842,16 @@ static void vmx_handle_syscall(struct vmx_vcpu *vcpu)
 	}
 }
 
+static void vmx_handle_invd(void)
+{
+	asm volatile("invd" : : : "memory");
+}
+
+static void vmx_handle_wbinvd(void)
+{
+	asm volatile ("wbinvd" : : : "memory");
+}
+
 static void vmx_handle_cpuid(struct vmx_vcpu *vcpu)
 {
 	unsigned int eax, ebx, ecx, edx;
@@ -2107,6 +2117,10 @@ int vmx_launch(struct dune_config *conf, int64_t *ret_code)
 
 		if (ret == EXIT_REASON_VMCALL)
 			vmx_handle_syscall(vcpu);
+		else if (ret = EXIT_REASON_INVD)
+			vmx_handle_invd();
+		else if (ret = EXIT_REASON_WBINVD)
+			vmx_handle_wbinvd();
 		else if (ret == EXIT_REASON_CPUID)
 			vmx_handle_cpuid(vcpu);
 		else if (ret == EXIT_REASON_EPT_VIOLATION)
