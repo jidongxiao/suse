@@ -22,7 +22,6 @@
 
 int myrand( void *rng_state, unsigned char *output, size_t len ){
     size_t i;
-
     if( rng_state != NULL )
         rng_state  = NULL;
 
@@ -36,7 +35,11 @@ int myrand( void *rng_state, unsigned char *output, size_t len ){
 
 int decryptmsg(unsigned char *ciphertext, key_rsa *encrypted_keys){
 
-    int j;
+    int j,ret=0;
+    size_t len;
+    unsigned char rsa_decrypted[1000];
+
+    // context
     aes_context aesContext;
     rsa_context rsaContext;
 
@@ -45,13 +48,6 @@ int decryptmsg(unsigned char *ciphertext, key_rsa *encrypted_keys){
     printf("size of RSA_D is %ld\n", sizeof (RSA_D));
     printf("size of RSA_P is %ld\n", sizeof (RSA_P));
     printf("size of RSA_Q is %ld\n", sizeof (RSA_Q));
-
-
-
-
-
-    size_t len;
-    unsigned char rsa_decrypted[1000];
 
     // initialize
     aes_setkey_dec(&aesContext,mkt,AES_KEY_SIZE_BITS);
@@ -94,16 +90,24 @@ int decryptmsg(unsigned char *ciphertext, key_rsa *encrypted_keys){
 */
 
 
-    mpi_read_string( &rsaContext.N , 16, encrypted_keys->N);
-    mpi_read_string( &rsaContext.E , 16, encrypted_keys->E);
+    // NULL terminated buffer for N
+    unsigned char BUFF_RSA_N[sizeof(RSA_N)];
+    memcpy(&BUFF_RSA_N, encrypted_keys->N, sizeof (RSA_N));
+    BUFF_RSA_N[sizeof(RSA_N)-1]='\0';
+    mpi_read_string( &rsaContext.N , 16, BUFF_RSA_N);
 
-    // check rsa public key
-    if(rsa_check_pubkey(&rsaContext)!=0){
-        printf("Reading public key error\n");
-        exit(0);
-    }else{
-        printf("Reading public key Success\n");
-    }
+
+
+    // NULL terminated buffer for E
+    unsigned char BUFF_RSA_E[sizeof(RSA_E)];
+    memcpy(&BUFF_RSA_E, encrypted_keys->E, sizeof (RSA_E));
+    BUFF_RSA_E[sizeof(RSA_E)-1]='\0';
+    mpi_read_string( &rsaContext.E , 16, BUFF_RSA_E);
+
+
+    //mpi_read_string( &rsaContext.N , 16, encrypted_keys->N);
+    //mpi_read_string( &rsaContext.E , 16, encrypted_keys->E);
+
 
     for(j=0;j<sizeof(plainKey)/AES_BLOCK_SIZE;++j){
         //aes_crypt_ecb(&aesContext,AES_DECRYPT,(unsigned char *)(&no_lebel_enc_key) + 2 * ( MAX_MPI_IN_BYTE) + AES_BLOCK_SIZE*j,plain+AES_BLOCK_SIZE*j);
@@ -133,6 +137,8 @@ int decryptmsg(unsigned char *ciphertext, key_rsa *encrypted_keys){
     memcpy(&decrypted_RSA_DQ, plainKey_rsa_no_label->DQ, sizeof (RSA_DQ));
     memcpy(&decrypted_RSA_QP, plainKey_rsa_no_label->QP, sizeof (RSA_QP));
 
+
+
     // Adding Null at the end
     decrypted_RSA_D[sizeof(RSA_D)-1]='\0';
     decrypted_RSA_P[sizeof(RSA_P)-1]='\0';
@@ -150,64 +156,49 @@ int decryptmsg(unsigned char *ciphertext, key_rsa *encrypted_keys){
     printf("decrypted_RSA_DQ %s\n", decrypted_RSA_DQ);
     printf("decrypted_RSA_QP %s\n", decrypted_RSA_QP);
 
-/*
+
     // reading keys
-    mpi_read_string( &rsaContext.D , 16, decrypted_RSA_D);
-    mpi_read_string( &rsaContext.P , 16, decrypted_RSA_P);
-    mpi_read_string( &rsaContext.Q , 16, decrypted_RSA_Q);
-    mpi_read_string( &rsaContext.DP, 16, decrypted_RSA_DP);
-    mpi_read_string( &rsaContext.DQ, 16, decrypted_RSA_DQ);
-    mpi_read_string( &rsaContext.QP, 16, decrypted_RSA_QP);
-
-*/
-
-
-
-    if(mpi_read_binary(&rsaContext.D,decrypted_RSA_D, sizeof (RSA_D))){
-    //if(mpi_read_binary(&rsaContext.D,plainKey_rsa_no_label->D, 256)){
-    //if(mpi_read_string(&rsaContext.D,16,plainKey_rsa_no_label->D)){
+    // if(mpi_read_binary(&rsaContext.D,decrypted_RSA_D, sizeof (RSA_D))){
+    // if(mpi_read_binary(&rsaContext.D,plainKey_rsa_no_label->D, sizeof (RSA_D))){
+    if(mpi_read_string(&rsaContext.D,16, decrypted_RSA_D)){
         printf("Error reading plainKey_rsa_no_label->D\n");
         exit(0);
     }
 
-    if(mpi_read_binary(&rsaContext.P,decrypted_RSA_P, sizeof (RSA_P))){
-    //if(mpi_read_binary(&rsaContext.P,plainKey_rsa_no_label->P,128)){
-    //if(mpi_read_string(&rsaContext.P,16,plainKey_rsa_no_label->P)){
+    // if(mpi_read_binary(&rsaContext.P,decrypted_RSA_P, sizeof (RSA_P))){
+    // if(mpi_read_binary(&rsaContext.P,plainKey_rsa_no_label->P,sizeof (RSA_P))){
+    if(mpi_read_string(&rsaContext.P,16, decrypted_RSA_P)){
         printf("Error reading plainKey_rsa_no_label->P\n");
         exit(0);
     }
 
-    if(mpi_read_binary(&rsaContext.Q,decrypted_RSA_Q, sizeof (RSA_Q))){
+    //if(mpi_read_binary(&rsaContext.Q,decrypted_RSA_Q, sizeof (RSA_Q))){
     //if(mpi_read_binary(&rsaContext.Q,plainKey_rsa_no_label->Q,128)){
-    //if(mpi_read_string(&rsaContext.Q,16,plainKey_rsa_no_label->Q)){
+    if(mpi_read_string(&rsaContext.Q,16, decrypted_RSA_Q)){
         printf("Error reading plainKey_rsa_no_label->Q\n");
         exit(0);
     }
 
-    if(mpi_read_binary(&rsaContext.DP,decrypted_RSA_DP, sizeof (RSA_DP))){
+    //if(mpi_read_binary(&rsaContext.DP,decrypted_RSA_DP, sizeof (RSA_DP))){
     //if(mpi_read_binary(&rsaContext.DP,plainKey_rsa_no_label->DP,128)){
-    //if(mpi_read_string(&rsaContext.DP,16,plainKey_rsa_no_label->DP)){
+    if(mpi_read_string(&rsaContext.DP,16, decrypted_RSA_DP)){
         printf("Error reading plainKey_rsa_no_label->DP\n");
         exit(0);
     }
 
-    if(mpi_read_binary(&rsaContext.DQ,decrypted_RSA_DQ, sizeof (RSA_DQ))){
+    //if(mpi_read_binary(&rsaContext.DQ,decrypted_RSA_DQ, sizeof (RSA_DQ))){
     //if(mpi_read_binary(&rsaContext.DQ,plainKey_rsa_no_label->DQ,128)){
-    //if(mpi_read_string(&rsaContext.DQ,16,plainKey_rsa_no_label->DQ)){
+    if(mpi_read_string(&rsaContext.DQ,16, decrypted_RSA_DQ)){
         printf("Error reading plainKey_rsa_no_label->DQ\n");
         exit(0);
     }
 
-    if(mpi_read_binary(&rsaContext.QP,decrypted_RSA_QP, sizeof (RSA_QP))){
+    //if(mpi_read_binary(&rsaContext.QP,decrypted_RSA_QP, sizeof (RSA_QP))){
     //if(mpi_read_binary(&rsaContext.QP,plainKey_rsa_no_label->QP,128)){
-    //if(mpi_read_string(&rsaContext.QP,16,plainKey_rsa_no_label->QP)){
+    if(mpi_read_string(&rsaContext.QP,16, decrypted_RSA_QP)){
         printf("Error reading plainKey_rsa_no_label->QP\n");
         exit(0);
     }
-
-
-
-
 
     // check rsa public key
     if(rsa_check_pubkey(&rsaContext)!=0){
@@ -220,17 +211,21 @@ int decryptmsg(unsigned char *ciphertext, key_rsa *encrypted_keys){
 
     printf("before rsa_pkcs1\n");
 
-    //if( rsa_pkcs1_decrypt( &rsaContext, &myrand, NULL, RSA_PRIVATE, &len, ciphertext, rsa_decrypted, sizeof(rsa_decrypted) ) != 0 ) {
+    size_t olen;
+
+
+    //if( rsa_pkcs1_decrypt( &rsaContext,RSA_PRIVATE,&olen,ciphertext,rsa_decrypted,sizeof(rsa_decrypted) ) != 0 ) {
     if( rsa_private(&rsaContext,ciphertext, rsa_decrypted) != 0 ) {
         printf( "Decryption failed! %d\n", rsa_private(&rsaContext,ciphertext, rsa_decrypted));
-        //printf( "Decryption failed! %d\n");
+        //printf( "Decryption failed! %d\n", rsa_pkcs1_decrypt( &rsaContext,RSA_PRIVATE,&olen,ciphertext,rsa_decrypted,sizeof(rsa_decrypted) ));
         exit(0);
     }else{
         printf("Decrypted plaintext-----> %s\n",rsa_decrypted );
+        ret =1;
 
 }
 
-    return 0;
+    return ret;
 }
 
 // END: all the functions for RSA operation
@@ -311,21 +306,18 @@ static int eng_rsa_pub_enc (int flen, const unsigned char *from, unsigned char *
     // copy from msg.txt to rsa_plaintext
     memcpy( rsa_plaintext, from, msg_len);
 
-    if( rsa_pkcs1_encrypt( &rsa_polar, &myrand, NULL, RSA_PUBLIC, msg_len, rsa_plaintext, rsa_ciphertext ) != 0 ) {
+    //if( rsa_pkcs1_encrypt( &rsa_polar, &myrand, NULL, RSA_PUBLIC, msg_len, rsa_plaintext, rsa_ciphertext ) != 0 ) {
+    if( rsa_public(&rsa_polar, rsa_plaintext, rsa_ciphertext)!=0) {
         printf( "Encryption failed! \n" );
         exit(0);
     }else {
         printf("RSA Encryption Successful\n");
+        FILE *fp;
+        //fp = fopen("to", "w+");
+        fp = fopen("msg.enc", "w+");
+        fprintf(fp, "%s", rsa_ciphertext);
+        fclose(fp);
     }
-
-/*
-    if(rsa_public(&rsa_polar, rsa_plaintext, rsa_ciphertext)!=0){
-        printf("ENC failed");
-        exit(0);
-    } else{
-        printf("RSA Encryption Successful\n");
-    }
-    */
 }
 
 
@@ -347,72 +339,8 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
     printf ("Engine is decrypting using priv key \n");
 
-/*
-
-    int result =-1,j;
-    rsa_context rsa_polar;
-    key_rsa test;
-    size_t len;
-
-
-    unsigned char encrypted_RSA_D[sizeof(RSA_D)];
-    unsigned char encrypted_RSA_P[sizeof(RSA_P)];
-    unsigned char encrypted_RSA_Q[sizeof(RSA_Q)];
-    unsigned char encrypted_RSA_DP[sizeof(RSA_DP)];
-    unsigned char encrypted_RSA_DQ[sizeof(RSA_DQ)];
-    unsigned char encrypted_RSA_QP[sizeof(RSA_QP)];
-
-
-    aes_context aes;
-    // following function will generate all the AES round keys for encryption
-    aes_setkey_enc(&aes,mkt,AES_KEY_SIZE_BITS);
-
-    for(j=0;j<sizeof(RSA_D)/AES_BLOCK_SIZE;++j){
-        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_D + AES_BLOCK_SIZE*j,encrypted_RSA_D+AES_BLOCK_SIZE*j);
-    }
-    printf("private key --> RSA_D encrypted \n");
-
-    for(j=0;j<sizeof(RSA_P)/AES_BLOCK_SIZE;++j){
-        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_P + AES_BLOCK_SIZE*j,encrypted_RSA_P+AES_BLOCK_SIZE*j);
-    }
-    printf("private key --> RSA_P encrypted \n");
-
-    for(j=0;j<sizeof(RSA_Q)/AES_BLOCK_SIZE;++j){
-        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_Q + AES_BLOCK_SIZE*j,encrypted_RSA_Q+AES_BLOCK_SIZE*j);
-    }
-    printf("private key --> RSA_Q encrypted \n");
-
-    for(j=0;j<sizeof(RSA_DP)/AES_BLOCK_SIZE;++j){
-        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_DP + AES_BLOCK_SIZE*j,encrypted_RSA_DP+AES_BLOCK_SIZE*j);
-    }
-    printf("private key --> RSA_DP encrypted \n");
-
-    for(j=0;j<sizeof(RSA_DQ)/AES_BLOCK_SIZE;++j){
-        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_DQ + AES_BLOCK_SIZE*j,encrypted_RSA_DQ+AES_BLOCK_SIZE*j);
-    }
-    printf("private key --> RSA_DQ encrypted \n");
-
-    for(j=0;j<sizeof(RSA_QP)/AES_BLOCK_SIZE;++j){
-        aes_crypt_ecb(&aes,AES_ENCRYPT, RSA_QP + AES_BLOCK_SIZE*j,encrypted_RSA_QP+AES_BLOCK_SIZE*j);
-    }
-    printf("private key --> RSA_QP encrypted \n");
-
-
-    // adding this encrypted keys into _key_rsa structure
-    memcpy(test.N, RSA_N, sizeof(RSA_N));
-    memcpy(test.E, RSA_E, sizeof(RSA_E));
-    memcpy(test.D, encrypted_RSA_D, sizeof(encrypted_RSA_D));
-    memcpy(test.P, encrypted_RSA_P, sizeof(encrypted_RSA_P));
-    memcpy(test.Q, encrypted_RSA_Q, sizeof(encrypted_RSA_Q));
-    memcpy(test.DP, encrypted_RSA_DP, sizeof(encrypted_RSA_DP));
-    memcpy(test.DQ, encrypted_RSA_DQ, sizeof(encrypted_RSA_DQ));
-    memcpy(test.QP, encrypted_RSA_QP, sizeof(encrypted_RSA_QP));
-*/
-
-
     int j, result;
     aes_context aesContext;
-    rsa_context rsaContext;
 
     // variable to hold the enc key
     unsigned char plain[sizeof(RSA_KEY_NO_LABEL)];
@@ -427,23 +355,17 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
     key_rsa encKEy;
 
 /*
-
-
     // copy public key
     if(mpi_read_binary(&test.N, RSA_N, sizeof (RSA_N))){
         printf("Error\n");
         exit(0);
-
     }
 
     if(mpi_read_binary(&test.E, RSA_E, sizeof (RSA_E))){
         printf("Error reading keys_kernel->E\n");
         exit(0);
     }
-
 */
-
-
 
     memcpy(keys_kernel.D, RSA_D, sizeof(RSA_D));
     memcpy(keys_kernel.P, RSA_P, sizeof(RSA_P));
@@ -454,7 +376,7 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
     printf("Size od RSA_D is %ld\n", sizeof (RSA_D));
 
-    printf("keys_kernel->D is %s\n", keys_kernel.D);
+    //printf("keys_kernel->D is %s\n", keys_kernel.D);
     printf("size of keys_kernel is %ld\n", sizeof (keys_kernel.D));
 
 
@@ -463,7 +385,6 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
     for(j=0;j<sizeof(plain)/AES_BLOCK_SIZE;j++){
         aes_crypt_ecb(&aesContext,AES_ENCRYPT,((unsigned char *)(&keys_kernel) + AES_BLOCK_SIZE*j),plain+AES_BLOCK_SIZE*j);
-        //aes_crypt_ecb(&aesContext,AES_ENCRYPT,(keys_kernel) + 2 * (4 + MAX_MPI_IN_BYTE) + LABEL_SIZE + AES_BLOCK_SIZE*j,plain+AES_BLOCK_SIZE*j);
     }
 
     rsa_no_label = (RSA_KEY_NO_LABEL_PTR ) plain;
@@ -483,8 +404,6 @@ static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char 
 
 
 }
-
-
 
 /* Constants used when creating the ENGINE */
 
