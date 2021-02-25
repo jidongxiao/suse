@@ -1,0 +1,3 @@
+/home/mass/Downloads/Summer_project/suse/user/rsa_engine/kern/vmx.o-.text-28d9 /home/mass/Downloads/Summer_project/suse/user/rsa_engine/kern/vmx.c .text vmx_launch callq *(%rax)
+/home/mass/Downloads/Summer_project/suse/user/rsa_engine/kern/vmx.o-.text-2a28 /home/mass/Downloads/Summer_project/suse/user/rsa_engine/kern/vmx.c .text vmx_launch callq *%rdx
+/home/mass/Downloads/Summer_project/suse/user/rsa_engine/kern/vmx.o-.text-749 /home/mass/Downloads/Summer_project/suse/user/rsa_engine/kern/vmx.c .text dune_do_fork.constprop.20 callq *%rax

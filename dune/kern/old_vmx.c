@@ -409,8 +409,8 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 #endif
 	if (_cpu_based_exec_control & CPU_BASED_ACTIVATE_SECONDARY_CONTROLS) {
 		min2 = 0;
-		//opt2 =  SECONDARY_EXEC_WBINVD_EXITING |
-		opt2 =	SECONDARY_EXEC_ENABLE_VPID |
+		opt2 =  SECONDARY_EXEC_WBINVD_EXITING |
+			SECONDARY_EXEC_ENABLE_VPID |
 			SECONDARY_EXEC_ENABLE_EPT |
 			SECONDARY_EXEC_RDTSCP |
 			SECONDARY_EXEC_ENABLE_INVPCID |
