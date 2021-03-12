@@ -1,3 +1,2 @@
-/home/mass/Downloads/Summer_project/suse/dune/kern/vmx.o-.text-28d3 /home/mass/Downloads/Summer_project/suse/dune/kern/vmx.c .text vmx_launch callq *(%rax)
-/home/mass/Downloads/Summer_project/suse/dune/kern/vmx.o-.text-2a22 /home/mass/Downloads/Summer_project/suse/dune/kern/vmx.c .text vmx_launch callq *%rdx
-/home/mass/Downloads/Summer_project/suse/dune/kern/vmx.o-.text-749 /home/mass/Downloads/Summer_project/suse/dune/kern/vmx.c .text dune_do_fork.constprop.20 callq *%rax
+/home/sourav/Downloads/Summer_Project/suse/dune/kern/vmx.o-.text-27f2 /home/sourav/Downloads/Summer_Project/suse/dune/kern/vmx.c .text vmx_launch callq *(%rax)
+/home/sourav/Downloads/Summer_Project/suse/dune/kern/vmx.o-.text-2899 /home/sourav/Downloads/Summer_Project/suse/dune/kern/vmx.c .text vmx_launch callq *%rcx
