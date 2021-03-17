@@ -319,10 +319,25 @@ int fill_L1dcache(struct CACHE_CRYPTO_ENV *env){
     return 1;
 }
 
+// clear all the variable
+int clear_env(unsigned char *field_to_clear, int forEachCacheLine){
+    printf("size is %d\n", forEachCacheLine);
+
+    unsigned char *address,*byte_value;
+
+    for (int i = 0; i<forEachCacheLine ; i++) {
+        address=((unsigned char *)field_to_clear);
+        memset(address+i, 0, 1);
+        //byte_value=*(address+i);
+        //printf("Read from %p byte is %hhx\n", address+i, byte_value);
+    }
+
+    return 1;
+}
 
 // wbinvd
 static inline void wbinvd(void){
-    asm volatile ("wbinvd" : : : "memory");
+    __asm__ __volatile__ ("wbinvd" : : : "memory");
 }
 
 //invd
@@ -330,32 +345,62 @@ static inline void new_invd(void){
     asm volatile ("invd" : : : "memory");
 }
 
-/*
-static inline void gl_clflush(volatile void *__p)
-{
-    //asm volatile("clflush %0": "+m" (*(__attribute__((force)) volatile char) *__p));
-    asm volatile("clflush %0" : "+m" (*(volatile char __force )(* __p)));
+
+void disCache(void *p){
+
+    __asm__ __volatile__ (
+    "wbinvd\n"
+    "mov %%cr0, %%rax\n\t"
+    "or $(1<<30), %%eax\n\t"
+    "mov %%rax, %%cr0\n\t"
+    "wbinvd\n"
+    ::
+    :"%rax"
+    );
+
+    //printk(KERN_INFO "cpuid %d --> cache disable\n", get_cpu());
+
 }
 
-// flush env.out
-unsigned int gl_clflush_cache_range(void *vaddr, unsigned int size)
-{
-    void *vend = vaddr + size - 1;
+void enaCache(void *p){
+    __asm__ __volatile__ (
+    "mov %%cr0, %%rax\n\t"
+    "and $~(1<<30), %%eax\n\t"
+    "mov %%rax, %%cr0\n\t"
+    ::
+    :"%rax"
+    );
 
-    //mb();
+    //printk(KERN_INFO "cpuid %d --> cache enable\n", get_cpu());
 
-    for (; vaddr < vend; vaddr += 64)
-        gl_clflush(vaddr);
-
-     //Flush any possible final partial cacheline:
-
-    gl_clflush(vend);
-
-    //mb();
-    return 0;
 }
 
-*/
+
+int test_func(struct CACHE_CRYPTO_ENV *env){
+    // variable for loop
+    int LEN=100000;
+    int STEP=1;
+    int VALUE=1;
+    int arr[LEN];
+    unsigned long dummy;
+    // test sample code
+    __asm__ __volatile__(
+
+    "loop:"
+    "movq %%rdx, (%%rbx);"
+    "leaq (%%rbx, %%rcx, 8), %%rbx;"
+    "cmpq %%rbx, %%rax;"
+    "jg loop;"
+    : "=b"(dummy) //output
+    : "b" (arr),
+    "a" (arr+LEN),
+    "c" (STEP),
+    "d" (VALUE)
+    : "cc", "memory"
+    );
+
+}
+
 
 int decryptFunction (struct CACHE_CRYPTO_ENV *env){
 
@@ -389,7 +434,7 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
 
     // read the keyId from env
     if (env->privateKeyID == NULL){
-        printf("Info for Which key to load is missing\n ");
+        //printf("Info for Which key to load is missing\n ");
         exit(0);
     }
 
@@ -495,16 +540,16 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
 
     // check rsa public key
     if(rsa_check_pubkey(rsaContext)!=0){
-        printf("Reading public key error\n");
+        //printf("Reading public key error\n");
         exit(0);
     }
 
     if(rsa_check_privkey(rsaContext)!=0){
-        printf("Reading private key error\n");
+        //printf("Reading private key error\n");
         exit(0);
     }
 
-    printf("Public & private key reading success\n");
+    //printf("Public & private key reading success\n");
 
     // reading msg
     unsigned char *from=env->in;
@@ -513,14 +558,14 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
 
 
     if( rsa_private(&(env->rsa),from, msg_decrypted) != 0 ) {
-        printf( "Decryption failed! %d\n", rsa_private(&(env->rsa),from, msg_decrypted));
+        //printf( "Decryption failed! %d\n", rsa_private(&(env->rsa),from, msg_decrypted));
         //exit(0);
     }else{
         //printf("Decrypted plaintext-----> %s\n",msg_decrypted );
-        printf("Inside decryption function, Decryption successful, Cleaning up\n");
+        //printf("Inside decryption function, Decryption successful, Cleaning up\n");
 
         //should I use clflush here?
-        _mm_clflush(&env->out);
+        //_mm_clflush(&env->out);
 
         // call invd
         //new_invd();
@@ -530,6 +575,9 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
 
         // putting into structure to read in the main function
         memcpy(&(env->out), &msg_decrypted, sizeof (msg_decrypted));
+
+        // cleaning all the sensetive data
+        //memset(env->masterKey, 0 , sizeof(env->masterKey));
 
         ret =1;
 
@@ -613,6 +661,39 @@ int stackswitch( void *env, int (*f)(struct CACHE_CRYPTO_ENV *), unsigned char *
     :"rax","rbx","rbp"
     );
 
+    // cleaning the cacheStack buffer
+    struct CACHE_CRYPTO_ENV *p =env;
+
+    //memset(p->cachestack, 0, sizeof(p->cachestack));
+    //printf("Cleaning cache Stack\n");
+
+    //memset(p->masterKey,0,sizeof (p->masterKey));
+
+    // clearing the full env
+    //memset(&p, 0, sizeof (p));
+    printf("size of P is %ld\n", sizeof *(p));
+
+    clear_env(p->masterKey, sizeof (p->masterKey));
+    clear_env(p->cachestack, sizeof (p->cachestack));
+    clear_env(p->encryptPrivateKey, sizeof (p->encryptPrivateKey));
+
+
+/*
+
+    unsigned char *address,*byte_value;
+
+    //int forEachCacheLine = sizeof *(env->structCacheCryptoEnv);
+    int forEachCacheLine = sizeof *(p);
+    //printf("size of forEachCacheLine is %d\n", forEachCacheLine);
+
+    for (int i = 0; i<forEachCacheLine ; i++) {
+        address=((unsigned char *)p);
+        memset(address+i, 0, 1);
+        //byte_value=*(address+i);
+        //printf("Read from %p byte is %hhx\n", address+i, byte_value);
+    }
+
+*/
 
     printf("\t\t\t\n\n");
     printf("******************   **************** ***************\n");
@@ -622,6 +703,9 @@ int stackswitch( void *env, int (*f)(struct CACHE_CRYPTO_ENV *), unsigned char *
 
     return 1;
 }
+
+
+
 
 /* Declared already in ossl_typ.h */
 /* typedef struct rsa_st RSA; */
@@ -825,11 +909,64 @@ static int eng_rsa_priv_enc (int flen, const unsigned char *from, unsigned char 
 
 }
 
+/*** Following variable is only for validation ***/
+#define device "/proc/disableCacheDriver"
+#define buff_size 3
+
+// global variable
+int fd;
+char buff[buff_size];
+int count=2; //count should be less then the buff_size
+int rv;
+
+void clear_buffer (char *buffer) {
+    memset(buffer, 0, buff_size);
+}
+void disableCache(){
+    //printf("Writing to %s\n", device);
+    printf("Disabling Cache\n");
+    //strcpy(buff,message);
+    strcpy(buff,"1");
+    rv=write(fd,buff,1);
+    if (rv==-1){
+        fprintf(stderr, "Error while writing\n");
+        exit(0);
+    }
+}
+
+void enableCache(){
+    //printf("Writing to %s\n", device);
+    printf("run INVD & Enabling Cache\n");
+    //strcpy(buff,message);
+    strcpy(buff,"0");
+    rv=write(fd,buff,1);
+    if (rv==-1){
+        fprintf(stderr, "Error while writing\n");
+        exit(0);
+    }
+}
+
+/** Variable for Validation END's   **/
+
+
 //static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char *to, RSA * rsa, int padding __attribute__ ((unused))){
 static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, RSA * rsa, int padding __attribute__ ((unused))){
 
     printf ("Engine is decrypting using priv key \n");
     int j;
+
+    // open device for enable/disable no-fill mode
+    // Clear Buffer
+    clear_buffer(buff);
+
+    fd=open(device, O_RDWR, S_IWUSR | S_IRUSR);
+    if(fd==-1){
+        // was throwing error. I fixed it by giving permission
+        //  sudo chmod 0777/0666 deviceDriver
+        fprintf(stderr, "Error Opening device File\n");
+        exit(-1);
+    }
+
 
 
     // read plaintext private keys from file. Private keys will be generated using executable simple.example/rsa-keygen
@@ -926,6 +1063,9 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
         exit(0);
     }
 
+
+    int idcache =0;
+
 /*
     // setting other CPUs to no-fill mode
     // set_no_fill_mode() return 1 on success
@@ -934,7 +1074,11 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
         exit(0);
     }
 
+*/
+    disableCache();
 
+
+/*
    // clearing no_fill_mode
    // clear_no_fill_mode(idcache);
    // exit(0);
@@ -1000,11 +1144,13 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
     memcpy(env.encryptPrivateKey, private_encrypt, sizeof(private_encrypt));
 
 
-
-
+    // disableCache/enableCache function only for validation purpose
+    //disableCache();
+    clear_buffer(buff);
     // Creating new stack in cache for private key computation
     result=stackswitch(&env, decryptFunction, env.cachestack+CACHE_STACK_SIZE-8);
 
+    enableCache();
 
     printf("after operation, result is %d\n",result);
     printf("after operation, Inside main function\n");
