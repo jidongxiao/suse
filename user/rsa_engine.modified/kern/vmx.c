@@ -440,7 +440,7 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 #endif
 	if (_cpu_based_exec_control & CPU_BASED_ACTIVATE_SECONDARY_CONTROLS) {
 		min2 = 0;
-		//opt2 =  SECONDARY_EXEC_WBINVD_EXITING |
+		//opt2 =  SECONDARY_EXEC_WBINVD_EXITING | // We comment this out, so that, guest will take control of WBINVD, thus running WBINVD will not trigger VMEXIT.
 		opt2 =	SECONDARY_EXEC_ENABLE_VPID |
 			SECONDARY_EXEC_ENABLE_EPT |
 			SECONDARY_EXEC_RDTSCP |
@@ -2109,6 +2109,7 @@ int vmx_launch(struct dune_config *conf, int64_t *ret_code)
 
 		if (ret == EXIT_REASON_VMCALL ||
 			ret == EXIT_REASON_CPUID ||
+			ret == EXIT_REASON_INVD ||	// We add this line, so that for INVD, we move GUEST RIP one instruction forward, and then below we call vmx_handle_invd() to run INVD on behalf of the guest.
 			ret == EXIT_REASON_MSR_WRITE) {
 			vmx_step_instruction();
 		}
