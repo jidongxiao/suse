@@ -410,7 +410,7 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 	if (_cpu_based_exec_control & CPU_BASED_ACTIVATE_SECONDARY_CONTROLS) {
 		min2 = 0;
 		//opt2 =  SECONDARY_EXEC_WBINVD_EXITING |
-		opt2 =	SECONDARY_EXEC_ENABLE_VPID |
+        	opt2 = SECONDARY_EXEC_ENABLE_VPID |
 			SECONDARY_EXEC_ENABLE_EPT |
 			SECONDARY_EXEC_RDTSCP |
 			SECONDARY_EXEC_ENABLE_INVPCID |
@@ -1704,7 +1704,15 @@ static void vmx_handle_syscall(struct vmx_vcpu *vcpu)
 		break;
 	}
 }
+static void vmx_handle_invd(void)
+{
+    asm volatile("invd" : : : "memory");
+}
 
+static void vmx_handle_wbinvd(void)
+{
+    asm volatile ("wbinvd" : : : "memory");
+}
 static void vmx_handle_cpuid(struct vmx_vcpu *vcpu)
 {
 	unsigned int eax, ebx, ecx, edx;
@@ -1954,7 +1962,8 @@ int vmx_launch(struct dune_config *conf, int64_t *ret_code)
 
 		if (ret == EXIT_REASON_VMCALL ||
 			ret == EXIT_REASON_CPUID ||
-			ret == EXIT_REASON_MSR_WRITE) {
+			ret == EXIT_REASON_MSR_WRITE ||
+			ret == EXIT_REASON_INVD ) {
 			vmx_step_instruction();
 		}
 
@@ -1962,6 +1971,15 @@ int vmx_launch(struct dune_config *conf, int64_t *ret_code)
 
 		if (ret == EXIT_REASON_VMCALL)
 			vmx_handle_syscall(vcpu);
+        else if (ret == EXIT_REASON_INVD){
+            //printk(KERN_ERR "EXIT_REASON_INVD\n");
+            vmx_handle_invd();
+            printk(KERN_ERR "EXIT_REASON_INVD\n");
+        }
+        else if (ret == EXIT_REASON_WBINVD){
+            //printk(KERN_ERR "EXIT_REASON_WBINVD\n");
+            vmx_handle_wbinvd();
+        }
 		else if (ret == EXIT_REASON_CPUID)
 			vmx_handle_cpuid(vcpu);
 		else if (ret == EXIT_REASON_EPT_VIOLATION)

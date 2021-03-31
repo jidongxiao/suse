@@ -11,9 +11,9 @@
 #include <openssl/bn.h>
 #include <openssl/err.h>
 #include <openssl/ossl_typ.h>
+#include <pthread.h>
 
 // loading RSA helper function
-//#include "rsa/cacheCryptoMain.h"
 #include "rsa/config.h"
 #include "rsa/aes.h"
 #include "rsa/bignum.h"
@@ -26,15 +26,15 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <x86intrin.h>
+#include <inttypes.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+
 
 // dune lib
 #include "libdune/dune.h"
 #include "libdune/cpu-x86.h"
-
-
-// test function to check running CPU number.
-// cat /proc/sched_debug | less
-// should show the running process (openssl, in this case) into CPU 1
 
 
 // Start: all the functions for RSA operation
@@ -55,6 +55,17 @@
 // core 2,3 (cpu 4-7) into cache set 1
 // I need to find a dynamic way to figure out how many cache set I have but until then this is my configuration
 #define SET_NUM 2
+#define idcache 0
+int ID;
+
+/* set MTRR region*/
+#include <asm/mtrr.h>
+#include <sys/mman.h>
+
+#define TRUE 1
+#define FALSE 0
+#define ERRSTRING strerror (errno)
+
 
 
 // Secure CRYPTO structure
@@ -62,15 +73,80 @@ static struct CACHE_CRYPTO_ENV{
     unsigned char in[KEY_LEN]; // in --> encrypted msg
     unsigned char masterKey[128/8]; // for 128 bit master key
     //unsigned char out[(KEY_LEN + CACHE_LINE_SIZE -1)/(CACHE_LINE_SIZE * CACHE_LINE_SIZE)] __attribute__ ((aligned(CACHE_LINE_SIZE)));  // out--> decrypted plaintext.
-    unsigned char out[KEY_LEN];
+    //unsigned char out[KEY_LEN];
+    unsigned char out[KEY_LEN] __attribute__ ((aligned(CACHE_LINE_SIZE)));
     aes_context aes; // initialize AES
     rsa_context rsa; // initialize RSA
     unsigned char cachestack[CACHE_STACK_SIZE];
     unsigned long privateKeyID;
     unsigned char encryptPrivateKey[KEY_BUFFER_SIZE]; // encrypted private key
+}cacheCryptoEnv __attribute__((aligned(64)));;
 
-}cacheCryptoEnv;
+#define cacheCryptoEnvSize (sizeof(cacheCryptoEnv)/64)
 
+__attribute__((always_inline)) inline void gl_clflush(const char *adrs){
+    asm __volatile__ (
+    "lfence\n"
+    "mfence\n"
+    "clflush 0(%0)  \n"
+    :
+    : "r" (adrs)
+    :
+    );
+}
+
+static unsigned int gl_clflush_cache_range(void *vaddr, unsigned int size){
+    void *vend = vaddr + size - 1;
+
+    //for (; vaddr < vend; vaddr += boot_cpu_data.x86_clflush_size)
+    asm("lfence; mfence" ::: "memory");
+    for (; vaddr < vend; vaddr += 64){
+        gl_clflush(vaddr);
+    }
+    printf("Inside gl_clflush_cache_range\n");
+    return 0;
+}
+
+
+// set high priority to this process
+void set_realtime_priority() {
+    int ret;
+
+    // We'll operate on the currently running thread.
+    pthread_t this_thread = pthread_self();
+
+    struct sched_param params;
+
+    // We'll set the priority to the maximum.
+    params.sched_priority = sched_get_priority_max(SCHED_FIFO);
+    printf("Trying to set thread realtime priority = %d\n", params.sched_priority );
+
+    // Attempt to set thread real-time priority to the SCHED_FIFO policy
+    ret = pthread_setschedparam(this_thread, SCHED_FIFO, &params);
+    if (ret != 0) {
+        // Print the error
+        printf("Unsuccessful in setting thread realtime priority\n");
+        return;
+    }
+
+    // Now verify the change in thread priority
+    int policy = 0;
+    ret = pthread_getschedparam(this_thread, &policy, &params);
+    if (ret != 0) {
+        printf("Couldn't retrieve real-time scheduling parameters\n");
+        return;
+    }
+
+    // Check the correct policy was applied
+    if(policy != SCHED_FIFO) {
+        printf("Scheduling is NOT SCHED_FIFO!\n");
+    } else {
+        printf("SCHED_FIFO OK\n");
+    }
+
+    // Print thread scheduling priority
+    printf("Thread priority is  = %d\n", params.sched_priority );
+}
 
 
  // Check Interrupts status
@@ -127,8 +203,7 @@ u64 get_cr0(void){
 }
 
 
-// clear bit 30 of cr0
-// Clearing all the CPU core except cpu1 from no-fill mode
+// clear bit 30 of cr0, Clearing all the CPU core except cpu1 from no-fill mode
 // return 1 on success.
 int clear_no_fill_mode(int idcacheNum){
 
@@ -137,11 +212,11 @@ int clear_no_fill_mode(int idcacheNum){
 
     switch (idcacheNum) {
         case 0:
-            // enable no-fill mode for cpu 0-3
-            printf("Inside clearing cache set 1\n");
-            for (i = 0; i <= 3; i++) {
+            // disenable no-fill mode for cpu 0-7
+            //printf("Inside clearing cache set 1\n");
+            for (i = 0; i < nproc; i++) {
                 // avoiding cpu1
-                if(i!=1){
+                if(i!=ID){
                     cpu_set_t mask;
                     CPU_ZERO(&mask);
                     CPU_SET(i, &mask); // setting cpu affinity
@@ -151,8 +226,8 @@ int clear_no_fill_mode(int idcacheNum){
                         assert(false);
                     }
 
-                    printf("\n\nExit no-fill mode[cpu%ld]: sched_getcpu() is %d\n",i, sched_getcpu());
-                    printf("Exit no-fill mode: before cr0 is = 0x%8.8X\n", get_cr0());
+                    //printf("\n\nExit no-fill mode[cpu%ld]: sched_getcpu() is %d\n",i, sched_getcpu());
+                    //printf("Exit no-fill mode: before cr0 is = 0x%8.8X\n", get_cr0());
 
                     // clear bit 30
                     __asm__ __volatile__ (
@@ -162,7 +237,7 @@ int clear_no_fill_mode(int idcacheNum){
                     ::
                     :"%rax"
                     );
-                    printf("After clear no-fill mode[cpu%ld] cr0 is =0x%8.8X\n\n", i, get_cr0());
+                    //printf("After clear no-fill mode[cpu%ld] cr0 is =0x%8.8X\n\n", i, get_cr0());
 
                 }
             }
@@ -177,29 +252,23 @@ int clear_no_fill_mode(int idcacheNum){
             printf("Error while setting no-fill mode\n");
             return 0;
     }
-
-
-    //for (i = 0; i < nproc; i++) {
-
     return 1;
 }
 
 // set bit 30 of cr0.
 // calling all available cpu's expept cpu 1. And set the cr0 bit 30 for no-fill mode.
 // return 1 on success.
-int set_no_fill_mode(int idcacheNum){
+int set_no_fill_mode(int idcacheNum, int cpuID){
 
     long nproc,i;
     nproc = sysconf(_SC_NPROCESSORS_ONLN); // return number of total available cpu
-
     switch (idcacheNum) {
         case 0:
             // enable no-fill mode for cpu 0-3
-            printf("Inside cache set 1\n");
-            for (i = 0; i <= 3; i++) {
+            for (i = 0; i < nproc; i++) {
 
-                // avoiding cpu1
-                if(i!=1){
+                // avoiding the first CPU where the program is currently loaded
+                if(i!=cpuID){
                     cpu_set_t mask;
                     CPU_ZERO(&mask);
                     CPU_SET(i, &mask); // setting cpu affinity
@@ -209,21 +278,32 @@ int set_no_fill_mode(int idcacheNum){
                         assert(false);
                     }
 
-                    printf("\n\nSet no-fill mode[cpu%ld]: sched_getcpu() is %d\n", i, sched_getcpu());
-                    printf("Set no-fill mode: before cr0 is = 0x%8.8X\n", get_cr0());
+                    //printf("\n\nSet no-fill mode[cpu%ld]: sched_getcpu() is %d\n", i, sched_getcpu());
+                    //printf("Set no-fill mode: before cr0 is = 0x%8.8X\n", get_cr0());
 
                     // clear bit 30
                     __asm__ __volatile__ (
-                    "mov %%cr0, %%rax\n\t"
-                    "or $(1<<30), %%eax\n\t"
-                    "mov %%rax, %%cr0\n\t"
-                    ::
-                    :"%rax"
+                        "wbinvd\n"
+                        "mov %%cr0, %%rax\n\t"
+                        "or $(1<<30), %%eax\n\t"
+                        "mov %%rax, %%cr0\n\t"
+                        "wbinvd\n"
+                        ::
+                        :"%rax"
                     );
-                    printf("Set no-fill mode[cpu%ld]: After cr0 is =0x%8.8X\n\n", i,get_cr0());
-
+                    //printf("Set no-fill mode[cpu%ld]: After cr0 is =0x%8.8X\n\n", i,get_cr0());
                 }
             }
+            // set CPU affinity to original CPU where the program is first loaded
+            cpu_set_t mask;
+            CPU_ZERO(&mask);
+            CPU_SET(cpuID, &mask); // setting cpu affinity to CPU 1
+
+            if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1) {
+                perror("sched_getaffinity");
+                assert(false);
+            }
+            printf("\n\n After putting all other CPU's to no fill mode, putting the rsa-engine to CPU %d\n\n", sched_getcpu());
             break;
 
         case 1:
@@ -256,8 +336,6 @@ bool get_memory_type(void){
 
     // read CR0 and check for bit 29 & 30
     printf("Inside get_memory_type: current cpu is %d\n", sched_getcpu());
-
-
     printf("cr0 is = 0x%" PRIx64 "\n", get_cr0());
 
     // checking bit 29 & 30, if any of the two bit is set. Then memory is not write back type.
@@ -266,72 +344,40 @@ bool get_memory_type(void){
         return false;
     }
 
-
     printf("Memory is write back type\n");
     return true;
 }
 
-
-
-//int fill_L1dcache(struct ENV *env){
-int fill_L1dcache(struct CACHE_CRYPTO_ENV *env){
-    printf("fill_L1D cache: env size is %ld\n", sizeof *(env));
-
-    // each cacheline load 64 byte of data at a time
-    unsigned char *p, *address,*byte_value, *byte_value2;
-
-    //int forEachCacheLine = sizeof *(env->structCacheCryptoEnv);
-    int forEachCacheLine = sizeof *(env);
-    //printf("size of forEachCacheLine is %d\n", forEachCacheLine);
-
-    for (int i = 0; i<forEachCacheLine ; i+=64) {
-
+void fillL1(struct CACHE_CRYPTO_ENV *p, int num){
+    int i;
+    //unsigned char *buf = p;
+    volatile struct CACHE_CRYPTO_ENV *buf = p;
+    for(i=0;i<num;++i){
 /*
-        printf("Byte %d \n",i);
-
-        // read 1 byte from the cacheCryptoEnv
-        p= ((unsigned char *)env->structCacheCryptoEnv)+i;
-        //printf("Read from %p byte is %hhx\n", ((unsigned char *)env->structCacheCryptoEnv)+i, *p);
-        printf("Read from %p byte is %hhx\n", p, *p);
-
-        // write 1 byte
-        *(((unsigned char *)env->structCacheCryptoEnv)+i)=*p;
-        printf("Write into %p \n\n", ((unsigned char *)env->structCacheCryptoEnv)+i);
-        //printf("current size is %ld\n", sizeof *(((unsigned char *)env->structCacheCryptoEnv)+i));
-
+        asm volatile(
+        "movq $0,(%0)\n"
+        :
+        :"r"(buf)
+        :
+        );
 */
+        //asm("lfence; mfence" ::: "memory");
+        __builtin_prefetch(buf,0,3);
+        //*buf += 0;
 
-        //printf("Byte %d \n",i);
-
-        // read 1 byte from the cacheCryptoEnv
-        address=((unsigned char *)env);
-        byte_value=*(address+i);
-        //byte_value2=*(address+i+1);
-        //printf("Read from %p byte is %hhx\n", address+i, byte_value);
-        //printf("Read second value from %p byte is %hhx\n", address+i+1, byte_value2);
-
-        // write 1 byte
-        *(address+i)=byte_value;
-        //printf("Write into %p byte is %hhx\n\n", (address+i), byte_value);
-
-
+        buf += 64;
     }
-    return 1;
+    printf("Inside fillL1, num is %d\n", num);
 }
 
 // clear all the variable
 int clear_env(unsigned char *field_to_clear, int forEachCacheLine){
-    printf("size is %d\n", forEachCacheLine);
-
     unsigned char *address,*byte_value;
-
     for (int i = 0; i<forEachCacheLine ; i++) {
+        asm("lfence; mfence" ::: "memory");
         address=((unsigned char *)field_to_clear);
         memset(address+i, 0, 1);
-        //byte_value=*(address+i);
-        //printf("Read from %p byte is %hhx\n", address+i, byte_value);
     }
-
     return 1;
 }
 
@@ -340,12 +386,8 @@ static inline void wbinvd(void){
     __asm__ __volatile__ ("wbinvd" : : : "memory");
 }
 
-//invd
-static inline void new_invd(void){
-    asm volatile ("invd" : : : "memory");
-}
 
-
+/*
 void disCache(void *p){
 
     __asm__ __volatile__ (
@@ -374,45 +416,53 @@ void enaCache(void *p){
     //printk(KERN_INFO "cpuid %d --> cache enable\n", get_cpu());
 
 }
+*/
 
+uint64_t rdtsc(){
+    unsigned int lo,hi;
+    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
+    return ((uint64_t)hi << 32) | lo;
+}
 
-int test_func(struct CACHE_CRYPTO_ENV *env){
-    // variable for loop
-    int LEN=100000;
-    int STEP=1;
-    int VALUE=1;
-    int arr[LEN];
-    unsigned long dummy;
-    // test sample code
-    __asm__ __volatile__(
+unsigned char randArray[cacheCryptoEnvSize];
 
-    "loop:"
-    "movq %%rdx, (%%rbx);"
-    "leaq (%%rbx, %%rcx, 8), %%rbx;"
-    "cmpq %%rbx, %%rax;"
-    "jg loop;"
-    : "=b"(dummy) //output
-    : "b" (arr),
-    "a" (arr+LEN),
-    "c" (STEP),
-    "d" (VALUE)
-    : "cc", "memory"
-    );
+int checkCache(unsigned char *p, int num){
+    //unsigned long long r1,r2;
+    uint64_t r1,r2;
+    int avg;
+    int total=0,i,r = 0;
+    unsigned char *buf = p;
+    for(i=0;i<num;++i){
+        buf = p + randArray[i]*64;
+        r1 = rdtsc();
+        __asm__ __volatile__(
+                "movl (%0),%%eax;\n"
+				:
+				:"r"(buf)
+				: "%eax"
+				);
 
+        r2 = rdtsc();
+        total += r2-r1;
+
+    }
+	avg = total/num;
+    //printf("average cycle to access cache is %d\n", avg);
+    return avg;
 }
 
 
 int decryptFunction (struct CACHE_CRYPTO_ENV *env){
 
-    //printf("Inside test_Decryption function, msg is: %s\n", env->in);
-    //printf("Inside test_Decryption function, current CPU set, current cpu is  = %d\n", sched_getcpu());
+    // wbinvd?
+    //asm("lfence; mfence" ::: "memory");
+    //wbinvd();
 
     // copy master key into env
     memcpy(env->masterKey, mkt, sizeof (mkt));
 
     //unsigned char *from=env->in;
     unsigned char *private_encrypt=env->encryptPrivateKey;
-
 
     int j,ret=0;
     size_t len;
@@ -429,8 +479,6 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
     aes_setkey_dec(aesContext,&(env->masterKey),AES_KEY_SIZE_BITS);
     rsa_init(rsaContext,RSA_PKCS_V15, 0);
     rsaContext->len=KEY_LEN;
-
-
 
     // read the keyId from env
     if (env->privateKeyID == NULL){
@@ -531,12 +579,6 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
         token = strtok(NULL, "= \n");
     }
 
-   // printf("after tokenization\n");
-
-
-    //exit(0);
-
-
 
     // check rsa public key
     if(rsa_check_pubkey(rsaContext)!=0){
@@ -554,34 +596,27 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
     // reading msg
     unsigned char *from=env->in;
 
-
-
-
     if( rsa_private(&(env->rsa),from, msg_decrypted) != 0 ) {
-        //printf( "Decryption failed! %d\n", rsa_private(&(env->rsa),from, msg_decrypted));
-        //exit(0);
+        printf( "Decryption failed! %d\n", rsa_private(&(env->rsa),from, msg_decrypted));
+        exit(0);
     }else{
         //printf("Decrypted plaintext-----> %s\n",msg_decrypted );
-        //printf("Inside decryption function, Decryption successful, Cleaning up\n");
 
         //should I use clflush here?
-        //_mm_clflush(&env->out);
+        //asm("lfence; mfence" ::: "memory");
+        //gl_clflush_cache_range(env->out,KEY_LEN);
 
-        // call invd
-        //new_invd();
 
-        //gl_clflush_cache_range(env->out,MAX_MPI_IN_BYTE);
-        //gl_clflush(env->out);
+        //printf("After INVD:  average cycle to access cache is %d\n", checkCache(&env, cacheCryptoEnvSize));
+        //printf("Current CPU [%d] cache is enabled : CR0 is: 0x%8.8X\n",sched_getcpu(), get_cr0());
+
+        //asm("lfence; mfence" ::: "memory");
+        //__asm__ __volatile__ ("invd\n":::"memory");
 
         // putting into structure to read in the main function
+        asm("lfence; mfence" ::: "memory");
         memcpy(&(env->out), &msg_decrypted, sizeof (msg_decrypted));
-
-        // cleaning all the sensetive data
-        //memset(env->masterKey, 0 , sizeof(env->masterKey));
-
         ret =1;
-
-
     }
 
     return ret;
@@ -595,12 +630,15 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
 // define stackswitch function
 int stackswitch( void *env, int (*f)(struct CACHE_CRYPTO_ENV *), unsigned char *stackBottom){
 
+    printf("******************   Inside stack_switch function ***************\n");
+
+/*
     printf("\t\t\t\n\n");
     printf("******************   **************************** ***************\n");
     printf("******************   Inside stack_switch function ***************\n");
     printf("******************   **************************** ***************\n");
     printf("\t\t\t\n\n");
-
+*/
 
     //printf("Inside stackswitch, msg is:  %s\n", ((struct CACHE_CRYPTO_ENV *)env)->in);
 
@@ -643,6 +681,8 @@ int stackswitch( void *env, int (*f)(struct CACHE_CRYPTO_ENV *), unsigned char *
     "movq %%rdx, %%rdi\t\n"
 
     //call wbinvd, only for validation
+    "lfence\n"
+    "mfence\n"
     "wbinvd\n"
 
     //call decryption function
@@ -664,43 +704,31 @@ int stackswitch( void *env, int (*f)(struct CACHE_CRYPTO_ENV *), unsigned char *
     // cleaning the cacheStack buffer
     struct CACHE_CRYPTO_ENV *p =env;
 
-    //memset(p->cachestack, 0, sizeof(p->cachestack));
-    //printf("Cleaning cache Stack\n");
-
-    //memset(p->masterKey,0,sizeof (p->masterKey));
 
     // clearing the full env
     //memset(&p, 0, sizeof (p));
-    printf("size of P is %ld\n", sizeof *(p));
-
     clear_env(p->masterKey, sizeof (p->masterKey));
     clear_env(p->cachestack, sizeof (p->cachestack));
     clear_env(p->encryptPrivateKey, sizeof (p->encryptPrivateKey));
 
 
+    //INVD
+    asm("lfence; mfence" ::: "memory");
+    __asm__ __volatile__ ("invd\n":::"memory");
+
+    //exit no-fill mode
+    clear_no_fill_mode(idcache);
+
+    // restore Interrupts
+    asm volatile("sti": : :"memory");
 /*
-
-    unsigned char *address,*byte_value;
-
-    //int forEachCacheLine = sizeof *(env->structCacheCryptoEnv);
-    int forEachCacheLine = sizeof *(p);
-    //printf("size of forEachCacheLine is %d\n", forEachCacheLine);
-
-    for (int i = 0; i<forEachCacheLine ; i++) {
-        address=((unsigned char *)p);
-        memset(address+i, 0, 1);
-        //byte_value=*(address+i);
-        //printf("Read from %p byte is %hhx\n", address+i, byte_value);
-    }
-
-*/
-
     printf("\t\t\t\n\n");
     printf("******************   **************** ***************\n");
     printf("******************   Stack Switch end ***************\n");
     printf("******************   **************** ***************\n");
     printf("\t\t\t\n\n");
-
+*/
+    printf("******************   Stack Switch end ***************\n");
     return 1;
 }
 
@@ -909,44 +937,6 @@ static int eng_rsa_priv_enc (int flen, const unsigned char *from, unsigned char 
 
 }
 
-/*** Following variable is only for validation ***/
-#define device "/proc/disableCacheDriver"
-#define buff_size 3
-
-// global variable
-int fd;
-char buff[buff_size];
-int count=2; //count should be less then the buff_size
-int rv;
-
-void clear_buffer (char *buffer) {
-    memset(buffer, 0, buff_size);
-}
-void disableCache(){
-    //printf("Writing to %s\n", device);
-    printf("Disabling Cache\n");
-    //strcpy(buff,message);
-    strcpy(buff,"1");
-    rv=write(fd,buff,1);
-    if (rv==-1){
-        fprintf(stderr, "Error while writing\n");
-        exit(0);
-    }
-}
-
-void enableCache(){
-    //printf("Writing to %s\n", device);
-    printf("run INVD & Enabling Cache\n");
-    //strcpy(buff,message);
-    strcpy(buff,"0");
-    rv=write(fd,buff,1);
-    if (rv==-1){
-        fprintf(stderr, "Error while writing\n");
-        exit(0);
-    }
-}
-
-/** Variable for Validation END's   **/
 
 
 //static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char *to, RSA * rsa, int padding __attribute__ ((unused))){
@@ -954,20 +944,6 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
 
     printf ("Engine is decrypting using priv key \n");
     int j;
-
-    // open device for enable/disable no-fill mode
-    // Clear Buffer
-    clear_buffer(buff);
-
-    fd=open(device, O_RDWR, S_IWUSR | S_IRUSR);
-    if(fd==-1){
-        // was throwing error. I fixed it by giving permission
-        //  sudo chmod 0777/0666 deviceDriver
-        fprintf(stderr, "Error Opening device File\n");
-        exit(-1);
-    }
-
-
 
     // read plaintext private keys from file. Private keys will be generated using executable simple.example/rsa-keygen
     // reading private key in a buffer
@@ -1035,13 +1011,22 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
 
 
 /*************************************** Start: Disabling Dune ***********************/
+    // set current process with high priority
+    setpriority(PRIO_PROCESS, 0, -20);
 
+    volatile int ret, result;
+    int cpuId=sched_getcpu();
+    ID=cpuId;
+    printf(" First: Before dune current cpu is  = %d\n", cpuId);
+
+    struct CACHE_CRYPTO_ENV env;
+
+
+    // check cache access cycle
+    //printf("Before disable average cycle to access cache is %d\n", checkCache(&env, cacheCryptoEnvSize));
 
     // DUNE starts
-    volatile int ret, result;
-
     printf("Dune: not running dune yet\n");
-
     ret = dune_init_and_enter();
     if (ret) {
         printf("failed to initialize dune\n");
@@ -1049,41 +1034,19 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
     }
     printf("Dune: now printing from dune mode\n");
 
-
-
-    // printing the coreID
-    printf(" First: current cpu is  = %d\n", sched_getcpu());
-
-
+/*
     // check if cpu 1 has write back memory type.
     // Write back memory : CR0 ==> bit 29 & 30 should be 0
     // for write back memory type, get_memory_type() should return true
+
     if (!get_memory_type()){
         printf("Memory is not write back type");
         exit(0);
     }
-
-
-    int idcache =0;
-
-/*
-    // setting other CPUs to no-fill mode
-    // set_no_fill_mode() return 1 on success
-    if(!set_no_fill_mode(idcache)){
-        printf("Setting Other CPUs to no-fill mode failed\n");
-        exit(0);
-    }
-
 */
-    disableCache();
 
 
 /*
-   // clearing no_fill_mode
-   // clear_no_fill_mode(idcache);
-   // exit(0);
-*/
-
     // Change CPU affinity to CPU 1, Isolated cpu
     cpu_set_t mask;
     CPU_ZERO(&mask);
@@ -1095,8 +1058,11 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
         perror("sched_setaffinity");
         assert(false);
     }
-    printf("  ***************** CPU 1 is set for operation **************** \n");
 
+    int cpu= sched_getcpu();
+    printf("UseSpace: Current CPU is %d \n", cpu);
+    printf("  ***************** CPU 1 is set for operation **************** \n");
+*/
 
     // Even though following line print current cpu is 123 (I don't know why).
     // cat /proc/sched_debug | grep openssl
@@ -1108,8 +1074,10 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
 
 /*************************************** Ends: Disabling Dune ***********************/
 
-    // initializing a env structure
-    struct CACHE_CRYPTO_ENV env;
+
+    // Giving current process the high priority
+    //set_realtime_priority();
+
 
     //fixed canary word
     char word[] ="0xaaaa";
@@ -1121,18 +1089,38 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
     printf("cacheStack canary is %s\n", env.cachestack);
     //exit(0);
 
-    //calling wbinvd
-    wbinvd();
+    //calling wbinvd & prevent memory inconsistency
+    asm("lfence; mfence" ::: "memory");
+    asm volatile("wbinvd":::"memory");
 
     // Disable interrupt
     asm volatile("cli": : :"memory");
 
+/*
     // Check Interrupt status : Returns a true boolean value if irq are enabled for the CPU
     printf("Interrupt enable?:\t");
     printf(are_interrupts_enabled() ? "Yes\n" : "No\n");
+*/
+    //printf("After disable cache:  average cycle to access cache is %d\n", checkCache(&env, cacheCryptoEnvSize));
+    //printf("Cache Disable from kernel : CR0 is: 0x%8.8X\n", get_cr0());
+
+    //asm("lfence; mfence" ::: "memory");
+    //asm volatile("wbinvd":::"memory");
+
+    // Local: set_no_fill_mode() return 1 on success
+    if(!set_no_fill_mode(idcache,cpuId)){
+        printf("Setting Other CPUs to no-fill mode failed\n");
+        exit(0);
+    }
+
+    // to prevent memory inconsistency and clear CAHE
+    asm("lfence; mfence" ::: "memory");
+    asm volatile("wbinvd":::"memory");
+
 
     // fillup L1d cache
-    fill_L1dcache(&env);
+    //asm("lfence; mfence" ::: "memory");
+    fillL1(&env, cacheCryptoEnvSize);
 
     // setting env.privateKeyID =1 to read encrypted keys from "private.enc"
     // this is where we select the private keyID to load the corresponding encrypted key file
@@ -1143,14 +1131,24 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
     memcpy(env.in, (unsigned char *)from, KEY_LEN);
     memcpy(env.encryptPrivateKey, private_encrypt, sizeof(private_encrypt));
 
-
-    // disableCache/enableCache function only for validation purpose
-    //disableCache();
-    clear_buffer(buff);
     // Creating new stack in cache for private key computation
+    asm("lfence; mfence" ::: "memory");
     result=stackswitch(&env, decryptFunction, env.cachestack+CACHE_STACK_SIZE-8);
 
-    enableCache();
+
+/*
+    // run INVD here?
+    printf("Running invd\n");
+    asm("lfence; mfence" ::: "memory");
+    asm volatile("invd":::"memory");
+    printf("Running invd: done\n");
+
+    //exit no-fill mode
+    clear_no_fill_mode(idcache);
+
+    // restore Interrupts
+    asm volatile("sti": : :"memory");
+*/
 
     printf("after operation, result is %d\n",result);
     printf("after operation, Inside main function\n");
@@ -1158,24 +1156,14 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
     printf("master key is %s\n", env.masterKey);
     printf("cacheStack is %s\n", env.cachestack);
 
-
-
-
-
-
     // restore Interrupts
-    asm volatile("sti": : :"memory");
+    //asm volatile("sti": : :"memory");
+
+    //check interrupt
     printf("Interrupt enable?:\t");
     printf(are_interrupts_enabled() ? "Yes\n" : "No\n");
 
-/*
-    // clear no fill mode. Return 1 on success
-    if(!clear_no_fill_mode(idcache)){
-        printf("Error: Couldn't clear CD flag of cr0 register.\n");
-        exit(0);
-    }
 
-*/
 
     // Without it code cause segfault. Will look at it later
     exit(0);
