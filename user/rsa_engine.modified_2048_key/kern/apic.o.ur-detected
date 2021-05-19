@@ -1,0 +1,5 @@
+/home/mass/Downloads/Summer_project/suse.update/user/rsa_engine.modified/kern/apic.o-.text-137 /home/mass/Downloads/Summer_project/suse.update/user/rsa_engine.modified/kern/apic.c .text dune_apic_init_rt_entry callq *0xe0(%rax)
+/home/mass/Downloads/Summer_project/suse.update/user/rsa_engine.modified/kern/apic.o-.text-146 /home/mass/Downloads/Summer_project/suse.update/user/rsa_engine.modified/kern/apic.c .text dune_apic_init_rt_entry callq *0x88(%rax)
+/home/mass/Downloads/Summer_project/suse.update/user/rsa_engine.modified/kern/apic.o-.text-15 /home/mass/Downloads/Summer_project/suse.update/user/rsa_engine.modified/kern/apic.c .text dune_apic_id callq *0xe0(%rax)
+/home/mass/Downloads/Summer_project/suse.update/user/rsa_engine.modified/kern/apic.o-.text-24 /home/mass/Downloads/Summer_project/suse.update/user/rsa_engine.modified/kern/apic.c .text dune_apic_id callq *0x88(%rax)
+/home/mass/Downloads/Summer_project/suse.update/user/rsa_engine.modified/kern/apic.o-.text-26c /home/mass/Downloads/Summer_project/suse.update/user/rsa_engine.modified/kern/apic.c .text dune_apic_send_ipi callq *0x110(%rax)
