@@ -27,7 +27,7 @@ void test(){
     while (start < endwait){
             start = time(NULL);
             // expect_script(ans.sh) will spawn run script (where I will call the openssl engine). Then add the ans script for password.
-            system("./ans.sh");
+            system("./rsa_decrypt");
             dec_counter++;
     }
     printf("\n Job %d has finished\n", counter);
