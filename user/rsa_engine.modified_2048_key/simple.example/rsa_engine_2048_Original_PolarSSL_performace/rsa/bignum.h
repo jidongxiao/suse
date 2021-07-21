@@ -1,3 +1,29 @@
+/**
+ * \file bignum.h
+ *
+ * \brief  Multi-precision integer library
+ *
+ *  Copyright (C) 2006-2013, Brainspark B.V.
+ *
+ *  This file is part of PolarSSL (http://www.polarssl.org)
+ *  Lead Maintainer: Paul Bakker <polarssl_maintainer at polarssl.org>
+ *
+ *  All rights reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
 #ifndef POLARSSL_BIGNUM_H
 #define POLARSSL_BIGNUM_H
 
@@ -6,13 +32,22 @@
 
 #include "config.h"
 
-//typedef unsigned int size_t;
-typedef short int16_t;
+#ifdef _MSC_VER
+#include <basetsd.h>
+#if (_MSC_VER <= 1200)
+typedef   signed short  int16_t;
 typedef unsigned short uint16_t;
-typedef int int32_t;
-typedef unsigned int uint32_t;
-
-
+#else
+typedef  INT16  int16_t;
+typedef UINT16 uint16_t;
+#endif
+typedef  INT32  int32_t;
+typedef  INT64  int64_t;
+typedef UINT32 uint32_t;
+typedef UINT64 uint64_t;
+#else
+#include <inttypes.h>
+#endif
 
 #define POLARSSL_ERR_MPI_FILE_IO_ERROR                     -0x0002  /**< An error occurred while reading from or writing to a file. */
 #define POLARSSL_ERR_MPI_BAD_INPUT_DATA                    -0x0004  /**< Bad input parameters to function. */
@@ -25,19 +60,12 @@ typedef unsigned int uint32_t;
 
 #define MPI_CHK(f) if( ( ret = f ) != 0 ) goto cleanup
 
-
-///1024->64 limbs, needs 67,assume 2048 needs 128+3
-//#define MPI_MAX_LIMBS	99  //128
-#define MPI_MAX_LIMBS	131 // works for 2048-bit keys
-//#define MPI_MAX_LIMBS 67  // works for 1024-bit keys
-#define MPI_MAX_BYTES	(MPI_MAX_LIMBS*sizeof(uint32_t))	//512
-#define	MPI_MAX_BITS	(MPI_MAX_BYTES<<3)	//4096, support 2048 rsa
-
 /*
  * Maximum size MPIs are allowed to grow to in number of limbs.
  */
 #define POLARSSL_MPI_MAX_LIMBS                             10000
 
+#if !defined(POLARSSL_CONFIG_OPTIONS)
 /*
  * Maximum window size used for modular exponentiation. Default: 6
  * Minimum value: 1. Maximum value: 6.
@@ -47,7 +75,7 @@ typedef unsigned int uint32_t;
  *
  * Reduction in size, reduces speed.
  */
-#define POLARSSL_MPI_WINDOW_SIZE                           1        /**< Maximum windows size used. */
+#define POLARSSL_MPI_WINDOW_SIZE                           6        /**< Maximum windows size used. */
 
 /*
  * Maximum size of MPIs allowed in bits and bytes for user-MPIs.
@@ -57,6 +85,9 @@ typedef unsigned int uint32_t;
  * of limbs required (POLARSSL_MPI_MAX_LIMBS) is higher.
  */
 #define POLARSSL_MPI_MAX_SIZE                              512      /**< Maximum number of bytes for usable MPIs. */
+
+#endif /* !POLARSSL_CONFIG_OPTIONS */
+
 #define POLARSSL_MPI_MAX_BITS                              ( 8 * POLARSSL_MPI_MAX_SIZE )    /**< Maximum number of bits for usable MPIs. */
 
 /*
@@ -84,17 +115,48 @@ typedef unsigned int uint32_t;
 /*
  * Define the base integer type, architecture-wise
  */
-
+#if defined(POLARSSL_HAVE_INT8)
+typedef   signed char  t_sint;
+typedef unsigned char  t_uint;
+typedef uint16_t       t_udbl;
+#define POLARSSL_HAVE_UDBL
+#else
+#if defined(POLARSSL_HAVE_INT16)
+typedef  int16_t t_sint;
+typedef uint16_t t_uint;
+typedef uint32_t t_udbl;
+#define POLARSSL_HAVE_UDBL
+#else
+  #if ( defined(_MSC_VER) && defined(_M_AMD64) )
+    typedef  int64_t t_sint;
+    typedef uint64_t t_uint;
+  #else
+    #if ( defined(__GNUC__) && (                          \
+          defined(__amd64__) || defined(__x86_64__)    || \
+          defined(__ppc64__) || defined(__powerpc64__) || \
+          defined(__ia64__)  || defined(__alpha__)     || \
+          (defined(__sparc__) && defined(__arch64__))  || \
+          defined(__s390x__) ) )
+       typedef  int64_t t_sint;
+       typedef uint64_t t_uint;
+       typedef unsigned int t_udbl __attribute__((mode(TI)));
+       #define POLARSSL_HAVE_UDBL
+    #else
        typedef  int32_t t_sint;
        typedef uint32_t t_uint;
-
+       #if ( defined(_MSC_VER) && defined(_M_IX86) )
+         typedef uint64_t t_udbl;
+         #define POLARSSL_HAVE_UDBL
+       #else
          #if defined( POLARSSL_HAVE_LONGLONG )
            typedef unsigned long long t_udbl;
            #define POLARSSL_HAVE_UDBL
          #endif
-
-
-
+       #endif
+    #endif
+  #endif
+#endif /* POLARSSL_HAVE_INT16 */
+#endif /* POLARSSL_HAVE_INT8  */
 
 /**
  * \brief          MPI structure
@@ -103,8 +165,7 @@ typedef struct
 {
     int s;              /*!<  integer sign      */
     size_t n;           /*!<  total # of limbs  */
-    //t_uint *p;          /*!<  pointer to limbs  */
-    t_uint p[MPI_MAX_LIMBS];
+    t_uint *p;          /*!<  pointer to limbs  */
 }
 mpi;
 
@@ -520,7 +581,7 @@ int mpi_mod_int( t_uint *r, const mpi *A, t_sint b );
 /**
  * \brief          Sliding-window exponentiation: X = A^E mod N
  *
- * \param X        Destination MPI
+ * \param X        Destination MPI 
  * \param A        Left-hand MPI
  * \param E        Exponent MPI
  * \param N        Modular MPI

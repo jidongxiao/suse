@@ -6,6 +6,18 @@
 //#define KEY_LEN 128 // for 1024-bit key
 #define KEY_LEN 256
 
+//#define CACHE_STACK_SIZE 20000 // most likely will be changed, depending on the size of the structure
+#define CACHE_STACK_SIZE 18000
+
+//This is the paddedd buffer size. This is for 2048-bit key. For different key length it will be different
+# define KEY_BUFFER_SIZE 2368
+
+// variables for threading
+#define NUM_OF_THREAD 2
+
+// following variable used inside fill-mode/no-fill mode
+#define SET_NUM 2
+
 
 #define AES_KEY_SIZE 16
 #define MASTER_KEY_SIZE AES_KEY_SIZE
@@ -21,6 +33,36 @@ unsigned char mkt[16] = { \
 0x1f,0x5b,0x30,0x31, \
 0x0c,0xe3,0x50,0x1a \
 };
+
+// structure to pass enc_msg & enc_key to the concurrent thread
+struct arg_thread{
+    unsigned char *from;
+    unsigned char *to;
+    int thread_id;
+};
+
+typedef struct file
+{
+    unsigned char *from;
+    unsigned char *to;
+} file_entry;
+
+
+// Secure CRYPTO structure
+static struct CACHE_CRYPTO_ENV{
+    unsigned char in[KEY_LEN]; // in --> encrypted msg
+    unsigned char masterKey[128/8]; // for 128 bit master key
+    unsigned char out[KEY_LEN];  // out--> decrypted plaintext.
+    aes_context aes; // initialize AES
+    rsa_context rsa; // initialize RSA
+    unsigned char cachestack[CACHE_STACK_SIZE];
+    unsigned long privateKeyID;
+    unsigned char encryptPrivateKey[KEY_BUFFER_SIZE]; // encrypted private key
+    int thread_no;
+    //unsigned char alloc_buf[10000];
+}cacheCryptoEnv;
+#define cacheCryptoEnvSize (sizeof(cacheCryptoEnv)/64)
+
 
 #define RSA_N   "D0C2ACDCF780B1E4846054BDA700F18D" \
                 "567247FE8BC5BA4FBCAB814E619DA63A" \

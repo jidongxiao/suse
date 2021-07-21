@@ -34,14 +34,13 @@
 #include "platform.h"
 
 #include <string.h>
-#include <stdio.h>
 
 #if defined(POLARSSL_MEMORY_BACKTRACE)
 #include <execinfo.h>
 #endif
 
 #if defined(POLARSSL_THREADING_C)
-#include "polarssl/threading.h"
+#include "threading.h"
 #endif
 
 /* Implementation that should never be optimized out by the compiler */

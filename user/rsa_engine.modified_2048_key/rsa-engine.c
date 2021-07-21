@@ -11,6 +11,7 @@
 #include <openssl/bn.h>
 #include <openssl/err.h>
 #include <openssl/ossl_typ.h>
+#include <signal.h>
 
 // loading RSA helper function
 //#include "rsa/cacheCryptoMain.h"
@@ -22,6 +23,7 @@
 #include "rsa/memory_buffer_alloc.h"
 #include "rsa/memory.h"
 #include "rsa/platform.h"
+#include "rsa/threading.h"
 #include <immintrin.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -30,260 +32,28 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/resource.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
+//#include <pthread.h>
+#include <time.h>
 
 // dune lib
 #include "libdune/dune.h"
 #include "libdune/cpu-x86.h"
 
-
-// test function to check running CPU number.
-// cat /proc/sched_debug | less
-// should show the running process (openssl, in this case) into CPU 1
-
-
 // Start: all the functions for RSA operation
 
 #define errExit(msg)    do { perror(msg); exit(EXIT_FAILURE); \
                                } while (0)
-//This is the paddedd buffer size. This is for 2048-bit key.
-// For different key length it will be different
-# define KEY_BUFFER_SIZE 2368
-
-//#define KEY_LEN 256
-
-
-//*********************  global variable for cache_crypto_env struct ************************//
-//#define CACHE_STACK_SIZE 20000 // most likely will be changed, depending on the size of the structure
-#define CACHE_STACK_SIZE 18000
-
-
-
-
-// Assuming in my processor, my 4 cores are assigned into 2 separate cache set
-// core 0,1 (cpu 0-3) into cache set 0
-// core 2,3 (cpu 4-7) into cache set 1
-// I need to find a dynamic way to figure out how many cache set I have but until then this is my configuration
-#define SET_NUM 2
-
-
-// Secure CRYPTO structure
-static struct CACHE_CRYPTO_ENV{
-    unsigned char in[KEY_LEN]; // in --> encrypted msg
-    unsigned char masterKey[128/8]; // for 128 bit master key
-    unsigned char out[KEY_LEN];  // out--> decrypted plaintext.
-    aes_context aes; // initialize AES
-    rsa_context rsa; // initialize RSA
-    unsigned char cachestack[CACHE_STACK_SIZE];
-    unsigned long privateKeyID;
-    unsigned char encryptPrivateKey[KEY_BUFFER_SIZE]; // encrypted private key
-}cacheCryptoEnv;
-#define cacheCryptoEnvSize (sizeof(cacheCryptoEnv)/64)
-
 
 
 // reading from files, Ideally below function
 // global
-unsigned char private_encrypt[KEY_BUFFER_SIZE];
+//unsigned char private_encrypt[KEY_BUFFER_SIZE];
 //unsigned char private_decrypt[KEY_BUFFER_SIZE];
-
-void enc_private_key_test(){
-    printf("Encryption\n");
-    unsigned int i, n;
-    int lastn;
-    char *p;
-    size_t keylen;
-    FILE *fkey, *fin = NULL, *fout = NULL;
-    off_t filesize, offset;
-    unsigned char key[512];
-    unsigned char IV[16];
-    unsigned char tmp[16];
-    unsigned char buffer[1024];
-
-    // initialize
-    memset( key,0, sizeof( key ) );
-    memset( IV,0, sizeof( IV ) );
-    memset( buffer,0, sizeof( buffer ) );
-
-    if( ( fin = fopen( "rsa_priv.txt", "rb" ) ) == NULL ){
-        fprintf( stderr, "Load private key failed\n");
-        exit(0);
-    }
-
-    if( ( fout = fopen( "ePrivate_test.txt", "wb+" ) ) == NULL ){
-        fprintf( stderr, "Load encrypted ePrivate key failed\n");
-        exit(0);
-    }
-
-    if( ( filesize = lseek( fileno( fin ), 0, SEEK_END ) ) < 0 ){
-        perror( "lseek" );
-        exit(0);
-    }
-
-    if( fseek( fin, 0, SEEK_SET ) < 0 ){
-        fprintf( stderr, "fseek(0,SEEK_SET) failed\n" );
-        exit(0);
-    }
-
-    // get the total file size
-    printf("size of the RSA private key %lld\n", filesize);
-
-
-    // initialize AES
-    aes_context aes;
-    aes_setkey_enc(&aes,mkt,AES_KEY_SIZE_BITS);
-
-
-    // Encrypt and write the ciphertext.
-    for( i = 0; i < 8; i++ )
-        buffer[i] = (unsigned char)( filesize >> ( i << 3 ) );
-
-    //p = argv[2];
-    lastn = (int)( filesize & 0x0F );
-
-    IV[15] = (unsigned char)(( IV[15] & 0xF0 ) | lastn );
-
-    // Append the IV at the beginning of the output.
-    if( fwrite( IV, 1, 16, fout ) != 16 ){
-        fprintf( stderr, "fwrite(%d bytes) failed\n", 16 );
-        exit(0);
-    }
-
-    for( offset = 0; offset < filesize; offset += 16 )
-    {
-        n = ( filesize - offset > 16 ) ? 16 : (int)( filesize - offset );
-        if( fread( buffer, 1, n, fin ) != (size_t) n ){
-            fprintf( stderr, "fread(%u bytes) failed\n", n );
-            exit(0);
-        }
-
-        for( i = 0; i < 16; i++ )
-            buffer[i] = (unsigned char)( buffer[i] ^ IV[i] );
-
-        // encryption
-        aes_crypt_ecb(&aes,AES_ENCRYPT, buffer,buffer);
-
-        if( fwrite( buffer, 1, 16, fout ) != 16 ){
-            fprintf( stderr, "fwrite(%d bytes) failed\n", 16 );
-            exit(0);
-        }
-
-        memcpy( IV, buffer, 16 );
-    }
-}
-
-void dec_private_key_file_test(){
-    printf("Decryption\n");
-    unsigned int i, n;
-    int lastn;
-    char *p;
-    size_t keylen;
-    FILE *fkey, *fin = NULL, *fout = NULL;
-    off_t filesize, offset;
-    unsigned char key[512];
-    unsigned char IV[16];
-    unsigned char tmp[16];
-    unsigned char buffer[1024];
-    unsigned char string_cat[2362];
-
-    // initialize
-    memset( key,0, sizeof( key ) );
-    memset( IV,0, sizeof( IV ) );
-    memset( buffer,0, sizeof( buffer ) );
-
-    // AES Decryption
-    if( ( fin = fopen( "ePrivate_test.txt", "rb" ) ) == NULL ){
-        //if( ( fin = fopen( "rsa_priv.txt", "rb" ) ) == NULL ){
-        fprintf( stderr, "Load private key failed\n");
-        exit(0);
-    }
-    memcpy(buffer,fin, sizeof (buffer));
-    //printf("buffer is : %c\n",buffer);
-
-
-    if( ( fout = fopen( "dPrivate_test.txt", "wb+" ) ) == NULL ){
-        fprintf( stderr, "Load encrypted ePrivate key failed\n");
-        exit(0);
-    }
-
-    if( ( filesize = lseek( fileno( fin ), 0, SEEK_END ) ) < 0 ){
-        perror( "lseek" );
-        exit(0);
-    }
-
-    printf("filesize: %lli\n", filesize);
-
-    if( fseek( fin, 0, SEEK_SET ) < 0 ){
-        fprintf( stderr, "fseek(0,SEEK_SET) failed\n" );
-        exit(0);
-    }
-
-    // initialize AES
-    aes_context aes;
-    aes_setkey_dec(&aes,mkt,AES_KEY_SIZE_BITS);
-/*
-    if( filesize < 16 ){
-        fprintf( stderr, "File too short to be decrypted.\n" );
-        exit(0);
-    }
-
-    if( ( filesize & 0x0F ) != 0 ){
-        fprintf( stderr, "File size not a multiple of 16.\n" );
-        exit(0);
-    }
-*/
-    //Subtract the IV
-    filesize -= 16;
-
-
-
-    // Read the IV and original filesize modulo 16.
-    if( fread( buffer, 1, 16, fin ) != 16 ){
-        fprintf( stderr, "Here1: fread(%d bytes) failed\n", 16 );
-        exit(0);
-    }
-
-    memcpy( IV, buffer, 16 );
-    lastn = IV[15] & 0x0F;
-
-    // Decrypt and write the plaintext.
-    for( offset = 0; offset < filesize; offset += 16 )
-    {
-        if( fread( buffer, 1, 16, fin ) != 16 ){
-            fprintf( stderr, "here2: fread(%d bytes) failed\n", 16 );
-            exit(0);
-        }
-
-        memcpy( tmp, buffer, 16 );
-        aes_crypt_ecb( &aes, AES_DECRYPT, buffer, buffer );
-
-        for( i = 0; i < 16; i++ )
-            buffer[i] = (unsigned char)( buffer[i] ^ IV[i] );
-
-        memcpy( IV, tmp, 16 );
-
-        n = ( lastn > 0 && offset == filesize - 16 )? lastn : 16;
-
-        //string_cat[2362]='\0';
-        //printf("Decrypted buffer[%lld]: %s\n", offset,buffer);
-        // concatinate here
-        strcat(string_cat,buffer);
-        //printf("lenght of string_cat is %d\n", strlen(string_cat));
-
-/*
-        //Following line is not needed for my cause
-        if( fwrite( buffer, 1, n, fout ) != (size_t) n ){
-            fprintf( stderr, "fwrite(%u bytes) failed\n", n );
-            exit(0);
-        }
-*/
-    }
-
-    // total filesize id 2361, I will put '0' at 2362
-    string_cat[2361]='\0';
-    //printf("Decrypted key : %s\n", string_cat);
-    printf("%s", string_cat);
-}
-
 
 
  // Check Interrupts status
@@ -338,7 +108,6 @@ u64 get_cr0(void){
     );
     return cr0;
 }
-
 
 // clear bit 30 of cr0
 // Clearing all the CPU core except cpu1 from no-fill mode
@@ -502,14 +271,19 @@ void fillL1(struct CACHE_CRYPTO_ENV *p, int num){
     //printf("Inside fillL1, num is %d\n", num);
 }
 
-
+threading_mutex_t lock;
 int decryptFunction (struct CACHE_CRYPTO_ENV *env){
+
+    //printf("Decryption: Interrupt enable?:\t");
+    //printf(are_interrupts_enabled() ? "Yes\n\n\n\n" : "No\n\n\n\n\n");
+
+    pthread_mutex_lock(&lock);
 
     // allocating buffer
     unsigned char alloc_buf[10000];
     memory_buffer_alloc_init( &alloc_buf, sizeof(alloc_buf) );
 
-    /************** Original Implementation ***************/
+
 
     unsigned char *from=env->in;
     unsigned char *private_encrypt=env->encryptPrivateKey;
@@ -529,6 +303,7 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
     aes_setkey_dec(aesContext,mkt,AES_KEY_SIZE_BITS);
     rsa_init(rsaContext,RSA_PKCS_V15, 0);
     rsaContext->len=KEY_LEN;
+
 
     // read the keyId from env
     if (env->privateKeyID == NULL){
@@ -557,13 +332,18 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
 
     /*************** Original Key decryption ends here  ***************/
 
+    // Following code is the replace of the previous block. Also works
+
     // tokenize key and read into rsa context
     const char s[3] = "= ";
     char *token;
     int k=0, size;
 
+    unsigned char *rest=private_decrypt;
+
     // get the first token
-    token = strtok(private_decrypt, s);
+    //token = strtok(private_decrypt, s);
+    token = strtok_r(rest, s, &rest);
 
     // walk through other tokens
     while( token != NULL ) {
@@ -614,8 +394,11 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
                 break;
         }
         k=k+1;
-        token = strtok(NULL, "= \n");
+        //token = strtok(NULL, "= \n");
+        token = strtok_r(rest, "= \n", &rest);
     }
+//*/
+
 
 // commenting for performance measurement
 /*
@@ -633,19 +416,19 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
     printf("Public & private key reading success\n");
 */
 
+
     if( rsa_private(&(env->rsa),from, msg_decrypted) != 0 ) {
         printf( "Decryption failed! %d\n", rsa_private(&(env->rsa),from, msg_decrypted));
-        //exit(0);
+        exit(0);
     }else{
         //printf("Decrypted plaintext-----> %s\n",msg_decrypted );
-
-        // checking memory uses
-        //memory_buffer_alloc_status();
 
         // putting into structure to read in the main function
         memcpy(&(env->out), &msg_decrypted, sizeof (msg_decrypted));
         ret =1;
     }
+    polarssl_mutex_unlock(&lock);
+
     return ret;
 }
 // END: all the functions for RSA operation
@@ -727,10 +510,10 @@ int stackswitch( void *env, int (*f)(struct CACHE_CRYPTO_ENV *), unsigned char *
     return 1;
 }
 
+
 /* Declared already in ossl_typ.h */
 /* typedef struct rsa_st RSA; */
 /* typedef struct rsa_meth_st RSA_METHOD; */
-
 
 struct rsa_meth_st {
 
@@ -923,152 +706,39 @@ static int eng_rsa_priv_enc (int flen, const unsigned char *from, unsigned char 
     //RSA_private_encrypt (flen, from, to, rsa, RSA_PKCS1_PADDING);
 }
 
-//static int eng_rsa_priv_dec (int flen, const unsigned char *from, unsigned char *to, RSA * rsa, int padding __attribute__ ((unused))){
-static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, RSA * rsa, int padding __attribute__ ((unused))){
 
+// thread function
+void thread_function(void * input){
 
-    //printf ("Engine is decrypting using priv key \n");
+    // set process priority to the highest
+    setpriority(PRIO_PROCESS, 0, -20);
 
+    struct arg_thread *argThread=(struct arg_thread *)input;
+    printf("%d thread created\n",argThread->thread_id);
 
-    // read plaintext private keys from file. Private keys will be generated using executable simple.example/rsa-keygen
-    // reading private key in a buffer
-    // Will use the following Code block once, to generate the encrypted RSA Keys, Ideally should be used in a different
-    // dedicated program just to encrypt the keys
-
-/*
-    int j;
-    unsigned char * buffer = 0;
-    long length;
-    FILE * fp = fopen ("rsa_priv.txt", "rb");
-
-    if (fp)
-    {
-        fseek (fp, 0, SEEK_END);
-        length = ftell (fp);
-        fseek (fp, 0, SEEK_SET);
-        //buffer = malloc (length);
-        buffer = calloc (1,length+1);
-        if (buffer){
-            fread (buffer, 1, length, fp);
-        }
-        fclose (fp);
-    }
-
-    //printf("main: Size of Buffer is %d\n", strlen(buffer));
-
-    // here total message length is strlen(buffer)/AES_BLOCK_SIZE, or 1209/16 =75.5625
-    // but the following line rounded it to 75. So, .625 length of the message is missing
-    // need to pad the buffer to make it multiple of 16. Reminder of 1209%16=9. So we need (16-9)=7
-    //  extra char to padding with the buffer
-    // before performing the encryption operation
-
-    //call a function for padding the buffer to make it multiple of 16
-    if(strlen(buffer)%AES_BLOCK_SIZE == 0){
-        printf("No padding needed\n");
-    }else{
-        int k=AES_BLOCK_SIZE-(strlen(buffer)%AES_BLOCK_SIZE);
-        //printf("padding needed: %d\n", k );
-
-        char ch[k];
-        int i;
-        for (i=0;i<k;i++){
-            ch[i]='0';
-        }
-        strncat(buffer,&ch,k);
-
-        //printf("After padding: Wish to see 0 here in output, strlen(buffer)/AES_BLOCK_SIZE is  %d\n", strlen(buffer)%AES_BLOCK_SIZE);
-        //printf("Padded buffer is \n %s\n", buffer);
-        //printf("Padded buffer size \n %d\n", strlen(buffer));
-    }
 
     unsigned char private_encrypt[KEY_BUFFER_SIZE];
-    unsigned char private_decrypt[KEY_BUFFER_SIZE];
+    int total_dec=1000;
 
-    // initialize aes context &
-    // following function will generate all the AES round keys for encryption
-    aes_context aes;
-    aes_setkey_enc(&aes,mkt,AES_KEY_SIZE_BITS);
-
-    for(j=0;j<strlen(buffer)/AES_BLOCK_SIZE;++j){
-        aes_crypt_ecb(&aes,AES_ENCRYPT, buffer + AES_BLOCK_SIZE*j,private_encrypt+AES_BLOCK_SIZE*j);
-        //printf("j= %d Encrypted private key is -->\n %s \n", j, private_encrypt);
+    // start dune again
+    if(dune_enter()){
+        printf("Coundn't start dune\n");
+        exit(0);
     }
-    printf("Encrypted private key is -->\n %s \n", private_encrypt);
+    printf("Thread created \n");
 
-    // writing encrypted keys into file
-    // *fp is declared previously from reading plain keys into buffer
-    fp = fopen("private.enc", "wb+");
-    fwrite(private_encrypt, sizeof(private_encrypt),1,fp);
-    fclose(fp);
-*/
 
-    // Reading encrypted from file
-//*
     // reading the private.enc from file
     FILE * fp2 = fopen ("private.enc", "rb");
     int size=KEY_BUFFER_SIZE;
-    //unsigned char key_buf[KEY_BUFFER_SIZE];
     if(fp2){
         while(size>0){
-            //fread(key_buf,1,sizeof (key_buf),fp2);
             fread(private_encrypt,1,sizeof (private_encrypt),fp2);
             size=size-1;
         }
     }
     fclose(fp2);
 
-    // Till now, Private key encryption complete
-//*/
-
-    // following two function works. But one at a time. Both reading from files
-    // Following function should be in a different C program runs on a different secure machine. We will call this function
-    // one time for generating encrypted AES master keys. Then comment this function
-    //enc_private_key_test();
-
-    // test AES master keys after decryption. Already added into the decryption function
-    //dec_private_key_file_test();
-    //exit(0);
-
-
-
-
-// ************************************ Start Calling decryption function here ******************************//
-
-
-/*************************************** Start: Disabling Dune ***********************/
-
-    setpriority(PRIO_PROCESS, 0, -20);
-
-    // DUNE starts
-    volatile int ret, result;
-
-    //printf("Dune: not running dune yet\n");
-
-    ret = dune_init_and_enter();
-    if (ret) {
-        printf("failed to initialize dune\n");
-        return ret;
-    }
-    printf("Dune: now printing from dune mode\n");
-
-
-    // Write back memory : CR0 ==> bit 29 & 30 should be 0
-    // for write back memory type, get_memory_type() should return true
-/*
-    if (!get_memory_type()){
-        printf("Memory is not write back type");
-        exit(0);
-    }
-*/
-
-/*
-    // setting other CPUs to no-fill mode
-    // set_no_fill_mode() return 1 on success
-    if(!set_no_fill_mode(idcache)){
-        printf("Setting Other CPUs to no-fill mode failed\n");
-        exit(0);
-    }
-*/
 
     // Disable interrupt
     asm volatile("cli": : :"memory");
@@ -1077,49 +747,92 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
     //printf("Interrupt enable?:\t");
     //printf(are_interrupts_enabled() ? "Yes\n" : "No\n");
 
-
-/*************************************** Ends: Disabling Dune ***********************/
-
     // initializing a env structure
     struct CACHE_CRYPTO_ENV env;
+    
+    //set thread_no
+    env.thread_no=argThread->thread_id;
+
 
     // fillup L1d cache
     fillL1(&env, cacheCryptoEnvSize);
 
-
-    // setting env.privateKeyID =1 to read encrypted keys from "private.enc"
-    // this is where we select the private keyID to load the corresponding encrypted key file
+    // setting env.privateKeyID =1 to read encrypted keys from "private.enc". This is where we select the private keyID to load the corresponding encrypted key file
     // for now, privateKeyID =1 means select private.enc
     env.privateKeyID=1;
 
     // reading encrypted msg from msg.enc into secure env
-    memcpy(env.in, (unsigned char *)from, KEY_LEN);
+    memcpy(env.in, argThread->from, KEY_LEN);
     memcpy(env.encryptPrivateKey, private_encrypt, sizeof(private_encrypt));
 
-    // Creating new stack in cache for private key computation
-    //result=stackswitch(&env, decryptFunction, env.cachestack+CACHE_STACK_SIZE-8);
-    stackswitch(&env, decryptFunction, env.cachestack+CACHE_STACK_SIZE-8);
 
+    while (total_dec>0) {
+        // Creating new stack in cache for private key computation
+        stackswitch(&env, decryptFunction, env.cachestack + CACHE_STACK_SIZE - 8);
+        printf("%d Decrypted plaintext-----> %s\n",total_dec, env.out);
+        total_dec--;
+    }
 
-    printf("Decrypted plaintext-----> %s\n",env.out );
 
 
     // restore Interrupts
     asm volatile("sti": : :"memory");
     //printf("Interrupt enable?:\t");
     //printf(are_interrupts_enabled() ? "Yes\n" : "No\n");
+    //printf("Test thread number %d Finish\n",argThread->thread_count);
 
 
-/*
-    // clear no fill mode. Return 1 on success
-    if(!clear_no_fill_mode(idcache)){
-        printf("Error: Couldn't clear CD flag of cr0 register.\n");
-        exit(0);
+
+}
+
+
+
+
+static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, RSA * rsa, int padding __attribute__ ((unused))){
+    printf ("Engine is decrypting using private key \n");
+
+    // copy engine argument to a predefine structure for using inside a thread function
+    struct arg_thread argThread[NUM_OF_THREAD];
+
+
+    // DUNE starts
+    volatile int ret;
+    ret = dune_init_and_enter();
+    if (ret) {
+        printf("failed to initialize dune\n");
+        return ret;
     }
-*/
 
-    // Without it code cause segfault. Will look at it later
+    // Initialize thread: Start clock to measure the time
+    int i;
+    clock_t t;
+
+    // total number of thread
+    pthread_t ths[NUM_OF_THREAD];
+
+    // start time count
+    time_t start = time(NULL);
+
+    for (i = 0; i < NUM_OF_THREAD; i++) {
+        argThread[i].from=from;
+        argThread[i].to=from;
+        argThread[i].thread_id=i;
+        pthread_create(&ths[i], NULL, thread_function, (void *)&argThread[i]);
+    }
+
+    for (i = 0; i < NUM_OF_THREAD; i++) {
+        void* res;
+        pthread_join(ths[i], &res);
+    }
+
+    // measure end time
+    printf("Time %.2f\n", (double)(time(NULL) - start));
+
+
+    // exit dune
     exit(0);
+
+
 
 }
 

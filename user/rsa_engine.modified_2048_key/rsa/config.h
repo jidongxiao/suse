@@ -1,14 +1,41 @@
 #ifndef POLARSSL_CONFIG_H
 #define POLARSSL_CONFIG_H
 
+
+///////////GL<///////////////////////////////////////
+#ifdef __KERNEL__
+#include <linux/types.h>
+#define MAX_CPUS_TSX 8
+//#define USE_STACK
+//#define ENABLE_RTM
+
+//#define HYPER
+
+//#define POLARSSL_MEMORY_DEBUG
+
+void memset1(void *,int , int );
+size_t strlen1(const char *);
+void *memcpy1(void *, const void *, size_t );
+
+#include <linux/printk.h>
+#define printf(fmt, args...) printk( KERN_DEBUG fmt, ## args)
+
+//#define DEBUG_DETAIL
+
+#ifdef DEBUG_DETAIL
+//#define P_DEBUG(fmt, args...) printk( KERN_DEBUG "CCK(File :%s Line: %d Name: %s PID: %u)"  fmt, __FILE__,__LINE__,current->comm, current->pid,## args)
+#define P_DEBUG printk
+#else
+//#define P_DEBUG(fmt, args...) printk( KERN_DEBUG fmt, ## args)
+#define P_DEBUG(fmt, args...) 
+#endif
+
+#endif
+///////////GL>///////////////////////////////////////
+
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_DEPRECATE)
 #define _CRT_SECURE_NO_DEPRECATE 1
 #endif
-
-/**
- * Following configuration is to check the memory used during operation
- * */
-#define POLARSSL_MEMORY_DEBUG
 
 /**
  * \name SECTION: System support
@@ -16,6 +43,50 @@
  * This section sets system specific settings.
  * \{
  */
+
+/**
+ * \def POLARSSL_THREADING_C
+ *
+ * Enable the threading abstraction layer.
+ * By default mbed TLS assumes it is used in a non-threaded environment or that
+ * contexts are not shared between threads. If you do intend to use contexts
+ * between threads, you will need to enable this layer to prevent race
+ * conditions.
+ *
+ * Module:  library/threading.c
+ *
+ * This allows different threading implementations (self-implemented or
+ * provided).
+ *
+ * You will have to enable either POLARSSL_THREADING_ALT or
+ * POLARSSL_THREADING_PTHREAD.
+ *
+ * Enable this layer to allow use of mutexes within mbed TLS
+ */
+#define POLARSSL_THREADING_C
+
+
+/**
+ * \def POLARSSL_THREADING_ALT
+ *
+ * Provide your own alternate threading implementation.
+ *
+ * Requires: POLARSSL_THREADING_C
+ *
+ * Uncomment this to allow your own alternate threading implementation.
+ */
+//#define POLARSSL_THREADING_ALT
+
+/**
+ * \def POLARSSL_THREADING_PTHREAD
+ *
+ * Enable the pthread wrapper layer for the threading layer.
+ *
+ * Requires: POLARSSL_THREADING_C
+ *
+ * Uncomment this to enable pthread mutexes.
+ */
+#define POLARSSL_THREADING_PTHREAD
 
 
 /**
