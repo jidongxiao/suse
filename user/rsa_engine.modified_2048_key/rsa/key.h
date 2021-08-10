@@ -7,13 +7,13 @@
 #define KEY_LEN 256
 
 //#define CACHE_STACK_SIZE 20000 // most likely will be changed, depending on the size of the structure
-#define CACHE_STACK_SIZE 18000
+#define CACHE_STACK_SIZE 19550
 
 //This is the paddedd buffer size. This is for 2048-bit key. For different key length it will be different
 # define KEY_BUFFER_SIZE 2368
 
 // variables for threading
-#define NUM_OF_THREAD 2
+#define NUM_OF_THREAD 8
 
 // following variable used inside fill-mode/no-fill mode
 #define SET_NUM 2

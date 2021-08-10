@@ -15,7 +15,7 @@
 #define LABEL_SIZE  32
 
 // therad count
-#define NUM_OF_THREAD 2
+#define NUM_OF_THREAD 8
 
 
 // structure to pass enc_msg & enc_key to the concurrent thread

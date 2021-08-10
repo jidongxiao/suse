@@ -75,7 +75,8 @@ typedef UINT64 uint64_t;
  *
  * Reduction in size, reduces speed.
  */
-#define POLARSSL_MPI_WINDOW_SIZE                           6        /**< Maximum windows size used. */
+//#define POLARSSL_MPI_WINDOW_SIZE                           6        /**< Maximum windows size used. */
+#define POLARSSL_MPI_WINDOW_SIZE                           1
 
 /*
  * Maximum size of MPIs allowed in bits and bytes for user-MPIs.
@@ -137,10 +138,12 @@ typedef uint32_t t_udbl;
           defined(__ia64__)  || defined(__alpha__)     || \
           (defined(__sparc__) && defined(__arch64__))  || \
           defined(__s390x__) ) )
-       typedef  int64_t t_sint;
-       typedef uint64_t t_uint;
-       typedef unsigned int t_udbl __attribute__((mode(TI)));
-       #define POLARSSL_HAVE_UDBL
+          typedef  int64_t t_sint;
+          typedef uint64_t t_uint;
+         //typedef int32_t t_sint;
+         //typedef uint32_t t_uint;
+         typedef unsigned int t_udbl __attribute__((mode(TI)));
+         #define POLARSSL_HAVE_UDBL
     #else
        typedef  int32_t t_sint;
        typedef uint32_t t_uint;

@@ -20,10 +20,10 @@
 #include "rsa/bignum.h"
 #include "rsa/rsa.h"
 #include "rsa/key.h"
-#include "rsa/memory_buffer_alloc.h"
-#include "rsa/memory.h"
-#include "rsa/platform.h"
-#include "rsa/threading.h"
+//#include "rsa/memory_buffer_alloc.h"
+//#include "rsa/memory.h"
+//#include "rsa/platform.h"
+//#include "rsa/threading.h"
 #include <immintrin.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -271,17 +271,17 @@ void fillL1(struct CACHE_CRYPTO_ENV *p, int num){
     //printf("Inside fillL1, num is %d\n", num);
 }
 
-threading_mutex_t lock;
+//threading_mutex_t lock;
 int decryptFunction (struct CACHE_CRYPTO_ENV *env){
 
     //printf("Decryption: Interrupt enable?:\t");
     //printf(are_interrupts_enabled() ? "Yes\n\n\n\n" : "No\n\n\n\n\n");
 
-    pthread_mutex_lock(&lock);
+    //pthread_mutex_lock(&lock);
 
     // allocating buffer
-    unsigned char alloc_buf[10000];
-    memory_buffer_alloc_init( &alloc_buf, sizeof(alloc_buf) );
+    //unsigned char alloc_buf[10000];
+    //memory_buffer_alloc_init( &alloc_buf, sizeof(alloc_buf) );
 
 
 
@@ -329,6 +329,7 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
 
     //printf("Final Decrypted private key is --> \n %s \n", private_decrypt);
 
+    //exit(0);
 
     /*************** Original Key decryption ends here  ***************/
 
@@ -427,7 +428,7 @@ int decryptFunction (struct CACHE_CRYPTO_ENV *env){
         memcpy(&(env->out), &msg_decrypted, sizeof (msg_decrypted));
         ret =1;
     }
-    polarssl_mutex_unlock(&lock);
+    //polarssl_mutex_unlock(&lock);
 
     return ret;
 }
@@ -725,6 +726,7 @@ void thread_function(void * input){
         printf("Coundn't start dune\n");
         exit(0);
     }
+
     printf("Thread created \n");
 
 
@@ -765,10 +767,10 @@ void thread_function(void * input){
     memcpy(env.in, argThread->from, KEY_LEN);
     memcpy(env.encryptPrivateKey, private_encrypt, sizeof(private_encrypt));
 
-
     while (total_dec>0) {
         // Creating new stack in cache for private key computation
         stackswitch(&env, decryptFunction, env.cachestack + CACHE_STACK_SIZE - 8);
+        //decryptFunction(&env);
         printf("%d Decrypted plaintext-----> %s\n",total_dec, env.out);
         total_dec--;
     }
@@ -827,6 +829,8 @@ static int eng_rsa_priv_dec (int flen, unsigned char *from, unsigned char *to, R
 
     // measure end time
     printf("Time %.2f\n", (double)(time(NULL) - start));
+
+    //printf("Here value is %d\n",Here);
 
 
     // exit dune

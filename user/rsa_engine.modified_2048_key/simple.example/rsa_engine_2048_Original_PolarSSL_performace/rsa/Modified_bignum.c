@@ -30,23 +30,19 @@
  *  http://math.libtomcrypt.com/files/tommath.pdf
  */
 
-
 #include "config.h"
 
 #if defined(POLARSSL_BIGNUM_C)
-//#define unsigned int size_t
 
 #include "bignum.h"
 #include "bn_mul.h"
 
 #include <stdlib.h>
-//#include <string.h>
+//#include <linux/string.h>
 
 #define ciL    (sizeof(t_uint))         /* chars in limb  */
 #define biL    (ciL << 3)               /* bits  in limb  */
 #define biH    (ciL << 2)               /* half limb size */
-
-
 
 /*
  * Convert between bits/chars and number of limbs
@@ -65,8 +61,7 @@ void mpi_init( mpi *X )
     X->s = 1;
     X->n = 0;
     //X->p = NULL;
-	//memset(X->p,0,MPI_MAX_BYTES);
-	memset(X->p,0,MPI_MAX_LIMBS);
+	memset(X->p,0,MPI_MAX_BYTES);
 }
 
 /*
@@ -82,9 +77,7 @@ void mpi_free( mpi *X )
     //    memset( X->p, 0, X->n * ciL );
     //    free( X->p );
     //}
-
-    //memset( X->p, 0, MPI_MAX_BYTES );
-    memset( X->p, 0, MPI_MAX_LIMBS );
+	memset( X->p, 0, MPI_MAX_BYTES );
     X->s = 1;
     X->n = 0;
     //X->p = NULL;
@@ -125,7 +118,8 @@ int mpi_grow( mpi *X, size_t nblimbs )
 int mpi_grow( mpi *X, size_t nblimbs )
 {
 
-    if( nblimbs > MPI_MAX_LIMBS )
+    //if( nblimbs > MPI_MAX_LIMBS )
+    if( nblimbs > POLARSSL_MPI_MAX_LIMBS )
         return( POLARSSL_ERR_MPI_MALLOC_FAILED );
 
     if( X->n < nblimbs )
@@ -1358,6 +1352,42 @@ static void mpi_montg_init( t_uint *mm, const mpi *N )
 }
 
 /*
+#include <linux/crypto.h>
+#include <linux/mm.h>
+#include <linux/highmem.h>
+#include <linux/ioctl.h>
+#include <linux/random.h>
+#include <linux/syscalls.h>
+#include <linux/pagemap.h>
+#include <linux/uaccess.h>
+#include <linux/scatterlist.h>
+#include <linux/version.h>
+
+#include <linux/miscdevice.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+
+#include <asm/io.h>
+#include <linux/syscalls.h>
+#include <linux/sysfs.h>
+#include <linux/tty.h>
+#include <stdarg.h>
+#include <linux/vt_kern.h>
+#include <asm/cacheflush.h>
+#include <asm/pgtable.h>
+#include <linux/ioport.h>
+#include <asm/io.h>
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
+#include <linux/delay.h>
+#include <asm/mtrr.h>
+//#include <uapi/asm/mtrr.h>
+#include <linux/stop_machine.h>
+
+*/
+
+
+/*
  * Montgomery multiplication: A = A * B * R^-1 mod N  (HAC 14.36)
  */
 static void mpi_montmul( mpi *A, const mpi *B, const mpi *N, t_uint mm, const mpi *T )
@@ -1473,16 +1503,10 @@ int mpi_exp_mod( mpi *X, const mpi *A, const mpi *E, const mpi *N, mpi *_RR )
     //if( _RR == NULL || _RR->p == NULL )		///////we have allocate memery
 	if( _RR == NULL || _RR->n == 0 )
     {
-	   
-	    MPI_CHK( mpi_lset( &RR, 1 ) );
-	    MPI_CHK( mpi_shift_l( &RR, N->n * 2 * biL ) );
-	    MPI_CHK( mpi_mod_mpi( &RR, &RR, N ) );
-	    
-/*
         MPI_CHK( mpi_lset( &RR, 1 ) );
         MPI_CHK( mpi_shift_l( &RR, N->n * 2 * biL ) );
         MPI_CHK( mpi_mod_mpi( &RR, &RR, N ) );
-*/
+
         if( _RR != NULL )
             memcpy( _RR, &RR, sizeof( mpi ) );
     }
@@ -1492,23 +1516,17 @@ int mpi_exp_mod( mpi *X, const mpi *A, const mpi *E, const mpi *N, mpi *_RR )
     /*
      * W[1] = A * R^2 * R^-1 mod N = A * R mod N
      */
-    if( mpi_cmp_mpi( A, N ) >= 0 ){
+    if( mpi_cmp_mpi( A, N ) >= 0 )
         mpi_mod_mpi( &W[1], A, N );
-    }
-    else{
-        mpi_copy( &W[1], A );
-    }
+    else   mpi_copy( &W[1], A );
 
-    
     mpi_montmul( &W[1], &RR, N, mm, &T );
-    
+
     /*
      * X = R^2 * R^-1 mod N = R mod N
      */
     MPI_CHK( mpi_copy( X, &RR ) );
-    
     mpi_montred( X, N, mm, &T );
-    
 
     if( wsize > 1 )
     {
@@ -1520,14 +1538,12 @@ int mpi_exp_mod( mpi *X, const mpi *A, const mpi *E, const mpi *N, mpi *_RR )
         MPI_CHK( mpi_grow( &W[j], N->n + 1 ) );
         MPI_CHK( mpi_copy( &W[j], &W[1]    ) );
 
-        
         for( i = 0; i < wsize - 1; i++ )
             mpi_montmul( &W[j], &W[j], N, mm, &T );
-       
+
         /*
          * W[i] = W[i - 1] * W[1]
          */
-        
         for( i = j + 1; i < (one << wsize); i++ )
         {
             MPI_CHK( mpi_grow( &W[i], N->n + 1 ) );
@@ -1535,7 +1551,6 @@ int mpi_exp_mod( mpi *X, const mpi *A, const mpi *E, const mpi *N, mpi *_RR )
 
             mpi_montmul( &W[i], &W[1], N, mm, &T );
         }
-        
     }
 
     nblimbs = E->n;
@@ -1586,17 +1601,14 @@ int mpi_exp_mod( mpi *X, const mpi *A, const mpi *E, const mpi *N, mpi *_RR )
             /*
              * X = X^wsize R^-1 mod N
              */
-           
             for( i = 0; i < wsize; i++ )
                 mpi_montmul( X, X, N, mm, &T );
-           
 
             /*
              * X = X * W[wbits] R^-1 mod N
              */
-           
             mpi_montmul( X, &W[wbits], N, mm, &T );
-            
+
             state--;
             nbits = 0;
             wbits = 0;
@@ -1619,9 +1631,7 @@ int mpi_exp_mod( mpi *X, const mpi *A, const mpi *E, const mpi *N, mpi *_RR )
     /*
      * X = A^E * R * R^-1 mod N = A^E mod N
      */
-  
     mpi_montred( X, N, mm, &T );
-    
 
     if( neg )
     {
@@ -2189,7 +2199,5 @@ cleanup:
 }
 
 #endif
-
-//#undef size_t
 
 #endif

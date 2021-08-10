@@ -1,25 +1,3 @@
-/*
-#ifndef POLARSSL_BIGNUM_H
-#define POLARSSL_BIGNUM_H
-
-#include <stdio.h>
-//#include <string.h>
-
-#include "config.h"
-
-//#include <inttypes.h>
-
-//#define unsigned int size_t 
-
-//typedef unsigned int size_t;
-typedef short int16_t;
-typedef unsigned short uint16_t;
-typedef int int32_t;
-typedef unsigned int uint32_t;
-*/
-// Above code if for Modified library
-
-
 #ifndef POLARSSL_BIGNUM_H
 #define POLARSSL_BIGNUM_H
 
@@ -28,24 +6,13 @@ typedef unsigned int uint32_t;
 
 #include "config.h"
 
-#ifdef _MSC_VER
-#include <basetsd.h>
-#if (_MSC_VER <= 1200)
-typedef   signed short  int16_t;
-typedef unsigned short uint16_t;
-#else
-typedef  INT16  int16_t;
-typedef UINT16 uint16_t;
-#endif
-typedef  INT32  int32_t;
-typedef  INT64  int64_t;
-typedef UINT32 uint32_t;
-typedef UINT64 uint64_t;
-#else
-#include <inttypes.h>
-#endif
 
-// Above code is from original library
+//typedef unsigned int size_t;
+typedef short int16_t;
+typedef unsigned short uint16_t;
+typedef int int32_t;
+typedef unsigned int uint32_t;
+
 
 
 #define POLARSSL_ERR_MPI_FILE_IO_ERROR                     -0x0002  /**< An error occurred while reading from or writing to a file. */
@@ -61,8 +28,9 @@ typedef UINT64 uint64_t;
 
 
 ///1024->64 limbs, needs 67,assume 2048 needs 128+3
-#define MPI_MAX_LIMBS	131				//128
-//#define MPI_MAX_LIMBS	67
+//#define MPI_MAX_LIMBS	99				//128
+#define MPI_MAX_LIMBS	67
+//#define MPI_MAX_LIMBS	131
 #define MPI_MAX_BYTES	(MPI_MAX_LIMBS*sizeof(uint32_t))	//512
 #define	MPI_MAX_BITS	(MPI_MAX_BYTES<<3)	//4096, support 2048 rsa
 
@@ -117,11 +85,9 @@ typedef UINT64 uint64_t;
 /*
  * Define the base integer type, architecture-wise
  */
-/*
+
        typedef  int32_t t_sint;
        typedef uint32_t t_uint;
-       //typedef  int64_t t_sint;
-       //typedef uint64_t t_uint;
 
          #if defined( POLARSSL_HAVE_LONGLONG )
            typedef unsigned long long t_udbl;
@@ -129,61 +95,7 @@ typedef UINT64 uint64_t;
          #endif
 
 
-*/
 
-// Above code is from modified library
-
-
-/*
- * Define the base integer type, architecture-wise
- */
-//*
-#if defined(POLARSSL_HAVE_INT8)
-typedef   signed char  t_sint;
-typedef unsigned char  t_uint;
-typedef uint16_t       t_udbl;
-#define POLARSSL_HAVE_UDBL
-#else
-#if defined(POLARSSL_HAVE_INT16)
-typedef  int16_t t_sint;
-typedef uint16_t t_uint;
-typedef uint32_t t_udbl;
-#define POLARSSL_HAVE_UDBL
-#else
-  #if ( defined(_MSC_VER) && defined(_M_AMD64) )
-typedef  int64_t t_sint;
-typedef uint64_t t_uint;
-  #else
-    #if ( defined(__GNUC__) && (                          \
-        defined(__amd64__) || defined(__x86_64__)    || \
-        defined(__ppc64__) || defined(__powerpc64__) || \
-        defined(__ia64__)  || defined(__alpha__)     || \
-        (defined(__sparc__) && defined(__arch64__))  || \
-        defined(__s390x__) ) )
-        typedef  int64_t t_sint;
-        typedef uint64_t t_uint;
-        //typedef  int32_t t_sint;
-        //typedef uint32_t t_uint;
-        typedef unsigned int t_udbl __attribute__((mode(TI)));
-        #define POLARSSL_HAVE_UDBL
-    #else
-        typedef  int32_t t_sint;
-        typedef uint32_t t_uint;
-        #if ( defined(_MSC_VER) && defined(_M_IX86) )
-            typedef uint64_t t_udbl;
-            #define POLARSSL_HAVE_UDBL
-       #else
-            #if defined( POLARSSL_HAVE_LONGLONG )
-                typedef unsigned long long t_udbl;
-                #define POLARSSL_HAVE_UDBL
-            #endif
-       #endif
-    #endif
-  #endif
-#endif /* POLARSSL_HAVE_INT16 */
-#endif /* POLARSSL_HAVE_INT8  */
-// Above code is from original library
-//*/
 
 /**
  * \brief          MPI structure
@@ -213,7 +125,6 @@ void mpi_init( mpi *X );
  *
  * \param X        One MPI to unallocate.
  */
-//void mpi_free1( mpi *X );
 void mpi_free( mpi *X );
 
 /**
